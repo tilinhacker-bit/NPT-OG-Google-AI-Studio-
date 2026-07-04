@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { Heart } from 'lucide-react';
+import React, { useMemo, useState, useRef } from 'react';
+import { Heart, Camera } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import { useStore } from '../store/useStore';
 import { masterRoster } from '../utils/roster';
 import { DATA } from '../data';
@@ -23,6 +24,21 @@ const HO_SHORT_LABELS: Record<string, string> = {
 };
 
 export function CalendarMatrix() {
+  const captureRef = useRef<HTMLDivElement>(null);
+  
+  const handleCapture = async () => {
+    if (!captureRef.current) return;
+    try {
+      const canvas = await html2canvas(captureRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `roster-${calMonth}-2026.png`;
+      link.click();
+    } catch (err) {
+      console.error('Failed to capture screenshot', err);
+    }
+  };
   const { userRole, userGroup, theme } = useStore();
   const [calMonth, setCalMonth] = useState<number>(7);
 
@@ -58,6 +74,7 @@ export function CalendarMatrix() {
       </div>
       
       <div 
+        ref={captureRef}
         id="capture-calendar-area" 
         className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden relative"
       >
@@ -70,7 +87,16 @@ export function CalendarMatrix() {
             {userRole === "HO" ? `Group ${userGroup} House Officer Schedule` : "All Ward Groups Comparison Matrix"}
           </p>
         </div>
-        <Heart className="h-4 w-4 text-pink-500 fill-pink-500/20" />
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleCapture}
+            className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition"
+            title="Save as Image"
+          >
+            <Camera className="h-4 w-4" />
+          </button>
+          <Heart className="h-4 w-4 text-pink-500 fill-pink-500/20" />
+        </div>
       </div>
 
       {userRole === "HO" ? (

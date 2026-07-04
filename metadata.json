@@ -1,0 +1,6 @@
+{
+  "name": "OG Hub",
+  "description": "Obstetrics & Gynaecology clinical ward roster, group directory, and shift calculator with progressive offline utilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

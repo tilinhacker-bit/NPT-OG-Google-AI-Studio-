@@ -26,7 +26,9 @@ import {
   BookOpen,
   FileText,
   ExternalLink,
-  HelpCircle
+  HelpCircle,
+  Moon,
+  Sun
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { DATA, MM_NAMES, RosterDay, Contact, DailyInfo } from "./data";
@@ -290,6 +292,25 @@ export default function App() {
 
   // Bilingual State (EN/MM)
   const [lang, setLang] = useState<"en" | "mm">("en");
+
+  // PDF Viewer state
+  const [readingPdfUrl, setReadingPdfUrl] = useState<string | null>(null);
+
+  // Dark Mode State
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem("oghub_darkmode");
+    if (saved) return JSON.parse(saved);
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem("oghub_darkmode", JSON.stringify(isDarkMode));
+  }, [isDarkMode]);
 
   // Collapsible cards state
   const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({
@@ -746,7 +767,7 @@ export default function App() {
                     {/* SUPER CARD: HO Group Tracker */}
                     <div 
                       onClick={() => toggleCard("ho-super")}
-                      className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 mb-4 cursor-pointer hover:bg-black/15 transition overflow-hidden"
+                      className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] mb-4 cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
                     >
                       <div className="p-4 flex justify-between items-center">
                         <div className="flex-grow">
@@ -822,13 +843,13 @@ export default function App() {
                     {/* Seniors Grids (1 + 2 + 2 style layout) */}
                     <div className="space-y-2">
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 p-3.5">
+                        <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
                           <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">Consultant (SCS)</p>
                           <p className="font-extrabold text-xs sm:text-sm leading-tight">
                             {dailyData?.SCS !== "-" ? translateName(dailyData?.SCS || "", lang) : "N/A"}
                           </p>
                         </div>
-                        <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 p-3.5">
+                        <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
                           <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">Junior Cons. (JCS)</p>
                           <p className="font-extrabold text-xs sm:text-sm leading-tight">
                             {dailyData?.JCS !== "-" ? translateName(dailyData?.JCS || "", lang) : "N/A"}
@@ -836,7 +857,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 p-3.5">
+                      <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
                         <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">Senior Assistant Surgeon (SAS)</p>
                         <p className="font-extrabold text-sm leading-tight">
                           {dailyData?.SAS !== "-" ? translateName(dailyData?.SAS || "", lang) : "N/A"}
@@ -846,7 +867,7 @@ export default function App() {
                       {/* AS Team & Ward Round Super Card */}
                       <div 
                         onClick={() => toggleCard("as")}
-                        className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 cursor-pointer hover:bg-black/15 transition overflow-hidden"
+                        className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
                       >
                         <div className="p-3.5 flex justify-between items-center">
                           <div>
@@ -913,7 +934,7 @@ export default function App() {
                       {/* Med OnCall Card */}
                       <div 
                         onClick={() => toggleCard("med")}
-                        className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 cursor-pointer hover:bg-black/15 transition overflow-hidden"
+                        className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
                       >
                         <div className="p-3.5 flex justify-between items-center">
                           <div>
@@ -1289,9 +1310,19 @@ export default function App() {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">PDF • 2.4 MB</p>
                           </div>
                         </div>
-                        <a href="#" className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition shadow-sm">
-                          <ExternalLink className="h-3.5 w-3.5" /> Download via Telegram
-                        </a>
+                        <div className="flex gap-2 mt-3">
+                          <button 
+                            onClick={() => setReadingPdfUrl("/guidelines.pdf")}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition shadow-sm dark:bg-indigo-500 dark:hover:bg-indigo-400">
+                            <BookOpen className="h-3.5 w-3.5" /> Read
+                          </button>
+                          <a 
+                            href="/guidelines.pdf"
+                            download
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                            <Download className="h-3.5 w-3.5" /> Download
+                          </a>
+                        </div>
                       </div>
 
                       <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
@@ -1304,9 +1335,19 @@ export default function App() {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">EBook • 5.1 MB</p>
                           </div>
                         </div>
-                        <a href="#" className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition shadow-sm">
-                          <ExternalLink className="h-3.5 w-3.5" /> Download via Telegram
-                        </a>
+                        <div className="flex gap-2 mt-3">
+                          <button 
+                            onClick={() => setReadingPdfUrl("/protocol.pdf")}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition shadow-sm dark:bg-emerald-500 dark:hover:bg-emerald-400">
+                            <BookOpen className="h-3.5 w-3.5" /> Read
+                          </button>
+                          <a 
+                            href="/protocol.pdf"
+                            download
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                            <Download className="h-3.5 w-3.5" /> Download
+                          </a>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1612,6 +1653,22 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+
+                <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex items-center justify-between">
+                  <div className="flex items-center gap-3 font-black text-slate-700">
+                    {isDarkMode ? <Moon className="h-5 w-5 text-indigo-400" /> : <Sun className="h-5 w-5 text-amber-500" />}
+                    Dark Mode
+                  </div>
+                  <button
+                    onClick={() => setIsDarkMode(!isDarkMode)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDarkMode ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`}
+                    />
+                  </button>
+                </div>
+
                 <button 
                   onClick={() => {
                     setIsColorModalOpen(true);
@@ -1819,6 +1876,35 @@ export default function App() {
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PDF VIEWER MODAL */}
+      <AnimatePresence>
+        {readingPdfUrl && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex flex-col"
+          >
+            <div className="flex justify-between items-center p-4 bg-slate-900 text-white border-b border-white/10">
+              <h3 className="font-bold text-sm tracking-wide">Reading Material</h3>
+              <button 
+                onClick={() => setReadingPdfUrl(null)} 
+                className="p-2 rounded-full hover:bg-white/10 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 w-full h-full bg-slate-100 dark:bg-slate-800">
+              <iframe 
+                src={readingPdfUrl} 
+                className="w-full h-full border-none" 
+                title="PDF Viewer" 
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

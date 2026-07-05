@@ -33,17 +33,76 @@ import {
   Camera,
   CalendarClock,
   NotebookPen,
+  Wrench,
+  Calculator,
+  Search,
+  Venus,
+  Mars,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { DATA, MM_NAMES, RosterDay, Contact, DailyInfo } from "./data";
+import { DATA, MM_NAMES, ZH_NAMES, RosterDay, Contact, DailyInfo } from "./data";
 import { masterRoster } from "./utils/roster";
 import { isWeekend, isHoliday } from "./utils/dateLogic";
 import { addDays } from "date-fns";
 import { CalendarMatrix } from "./components/CalendarMatrix";
 import { DirectoryTab } from "./components/DirectoryTab";
-import { NotesWidget } from "./components/NotesWidget";
+import { NotesWidget, useNotesStore } from "./components/NotesWidget";
+import { OBGYNCalculators } from "./components/OBGYNCalculators";
+import { OBGYNFacts, OBGYN_FACTS_LIST } from "./components/OBGYNFacts";
 import { AdminAudit } from "./components/AdminAudit";
+import { OTListWidget } from "./components/OTListWidget";
 import { useStore } from "./store/useStore";
+
+const SETTINGS_LANG: Record<string, Record<string, string>> = {
+  en: {
+    title: "Settings",
+    chooseLang: "Choose Language",
+    appearance: "Appearance",
+    light: "Light",
+    dark: "Dark",
+    amoled: "AMOLED",
+    installApp: "Install App",
+    adminAccess: "Admin Access",
+    aboutApp: "About App",
+    appFeatures: "App Features",
+    logout: "Change Role / Logout",
+    enterAccessCode: "Enter access code...",
+    cancel: "Cancel",
+    unlock: "Unlock",
+  },
+  mm: {
+    title: "ပြင်ဆင်မှုများ",
+    chooseLang: "ဘာသာစကား ရွေးချယ်ရန်",
+    appearance: "အပြင်အဆင်",
+    light: "Light",
+    dark: "Dark",
+    amoled: "AMOLED",
+    installApp: "အက်ပ်သွင်းရန်",
+    adminAccess: "အက်ဒမင် ဝင်ရောက်ခွင့်",
+    aboutApp: "အက်ပ်အကြောင်း",
+    appFeatures: "အက်ပ်၏ လုပ်ဆောင်ချက်များ",
+    logout: "အသုံးပြုသူအမျိုးအစားပြောင်းရန် / ထွက်ရန်",
+    enterAccessCode: "ကုဒ်နံပါတ် ထည့်ပါ...",
+    cancel: "မလုပ်တော့ပါ",
+    unlock: "ဖွင့်ရန်",
+  },
+  zh: {
+    title: "系统设置",
+    chooseLang: "选择语言",
+    appearance: "外观主题",
+    light: "浅色模式",
+    dark: "深色模式",
+    amoled: "AMOLED极黑模式",
+    installApp: "安装应用",
+    adminAccess: "管理权限",
+    aboutApp: "关于应用",
+    appFeatures: "功能介绍",
+    logout: "更改角色 / 退出登录",
+    enterAccessCode: "请输入授权密码...",
+    cancel: "取消",
+    unlock: "解锁",
+  }
+};
 
 function getInitials(name: string): string {
   let cleanName = name.replace(/Dr\.?\s*/gi, "").trim();
@@ -53,12 +112,13 @@ function getInitials(name: string): string {
     .join("");
 }
 
-function translateName(name: string, lang: "en" | "mm"): string {
+function translateName(name: string, lang: "en" | "mm" | "zh"): string {
   if (lang === "en") return name;
   let translated = name;
-  for (const [enName, mmName] of Object.entries(MM_NAMES)) {
+  const mapping = lang === "zh" ? ZH_NAMES : MM_NAMES;
+  for (const [enName, mappedName] of Object.entries(mapping)) {
     if (translated.includes(enName)) {
-      translated = translated.replace(enName, mmName);
+      translated = translated.replace(enName, mappedName);
     }
   }
   return translated;
@@ -192,6 +252,113 @@ export default function App() {
     setAppTheme,
   } = useStore();
 
+  const { notes } = useNotesStore();
+
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+
+  const globalSearchResults = useMemo(() => {
+    const query = globalSearchQuery.trim().toLowerCase();
+    if (!query) return { directory: [], facts: [], notes: [] };
+
+    // 1. Directory search
+    const directoryResults: { category: string; name: string; phone?: string }[] = [];
+
+    // Consultants, SAS from directory_layout
+    DATA.directory_layout.forEach((section) => {
+      section.contacts.forEach((contact) => {
+        const nameTranslated = translateName(contact.name, lang).toLowerCase();
+        const nameOriginal = contact.name.toLowerCase();
+        if (nameOriginal.includes(query) || nameTranslated.includes(query)) {
+          directoryResults.push({
+            category: section.header,
+            name: contact.name,
+            phone: contact.phone,
+          });
+        }
+      });
+    });
+
+    // Assistant Surgeons
+    Object.entries(DATA.as_directory).forEach(([groupNum, contacts]) => {
+      contacts.forEach((contact) => {
+        const nameTranslated = translateName(contact.name, lang).toLowerCase();
+        const nameOriginal = contact.name.toLowerCase();
+        const phone = contact.phone || "";
+        if (
+          nameOriginal.includes(query) ||
+          nameTranslated.includes(query) ||
+          phone.includes(query)
+        ) {
+          directoryResults.push({
+            category: `Assistant Surgeons Group ${groupNum}`,
+            name: contact.name,
+            phone: contact.phone,
+          });
+        }
+      });
+    });
+
+    // House Officers
+    Object.entries(DATA.ho_directory).forEach(([groupLetter, contacts]) => {
+      contacts.forEach((contact) => {
+        const nameTranslated = translateName(contact.name, lang).toLowerCase();
+        const nameOriginal = contact.name.toLowerCase();
+        const phone = contact.phone || "";
+        if (
+          nameOriginal.includes(query) ||
+          nameTranslated.includes(query) ||
+          phone.includes(query)
+        ) {
+          directoryResults.push({
+            category: `House Officer Group ${groupLetter}`,
+            name: contact.name,
+            phone: contact.phone,
+          });
+        }
+      });
+    });
+
+    // 2. OBGYN Facts & Guidelines
+    const factsResults: { title: string; subtitle: string; bullets: string[]; reference: string }[] = [];
+    OBGYN_FACTS_LIST.forEach((item) => {
+      const titleEn = item.titleEn.toLowerCase();
+      const titleMm = item.titleMm.toLowerCase();
+      const subtitle = item.subtitle.toLowerCase();
+      const bulletsMatch = item.bullets.some((b) => b.toLowerCase().includes(query));
+
+      if (
+        titleEn.includes(query) ||
+        titleMm.includes(query) ||
+        subtitle.includes(query) ||
+        bulletsMatch
+      ) {
+        factsResults.push({
+          title: lang === "en" ? item.titleEn : item.titleMm,
+          subtitle: item.subtitle,
+          bullets: item.bullets,
+          reference: item.reference,
+        });
+      }
+    });
+
+    // 3. Saved Notes
+    const notesResults: typeof notes = [];
+    notes.forEach((note) => {
+      const noteTitle = (note.title || "").toLowerCase();
+      const noteText = note.text.toLowerCase();
+      if (noteTitle.includes(query) || noteText.includes(query)) {
+        notesResults.push(note);
+      }
+    });
+
+    return {
+      directory: directoryResults,
+      facts: factsResults,
+      notes: notesResults,
+    };
+  }, [globalSearchQuery, notes, lang]);
+
   const [dateOffset, setDateOffset] = useState<number>(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -206,6 +373,7 @@ export default function App() {
     };
   }, []);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  const [isGroupBCalcsOpen, setIsGroupBCalcsOpen] = useState<boolean>(false);
   const [logoTapCount, setLogoTapCount] = useState<number>(0);
   const logoTapTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -214,6 +382,8 @@ export default function App() {
   const [adminAuthModalOpen, setAdminAuthModalOpen] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [installModalOpen, setInstallModalOpen] = useState(false);
+  const [chineseJokeOpen, setChineseJokeOpen] = useState(false);
+  const [utilitySubTab, setUtilitySubTab] = useState<"facts" | "calcs" | "notes">("facts");
 
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<"presets" | "custom">("presets");
@@ -338,11 +508,12 @@ export default function App() {
       setAdminPasswordInput("");
       return;
     }
-    if (adminPasswordInput === "YAWNAKA") {
+    if (adminPasswordInput.toLowerCase() === "yawnaka") {
       setIsAdminUnlocked(true);
-      setCurrentTab("admin");
+      setCurrentTab("calendar");
       setAdminAuthModalOpen(false);
       setAdminPasswordInput("");
+      alert("🔓 Admin Access Unlocked successfully! You can now edit any day on the calendar, customize colors/texts globally, and assign/override Group Shift schedules. Any modifications you make will affect all users (simulated as global changes).");
     } else {
       alert("❌ Incorrect password. Access denied.");
     }
@@ -553,14 +724,32 @@ export default function App() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => setInstallModalOpen(true)}
-              className="h-10 px-3 rounded-full bg-indigo-50 border border-indigo-100 flex items-center gap-1.5 text-indigo-600 hover:bg-indigo-100 shadow-sm transition font-black text-[10px] uppercase tracking-wider"
+              onClick={() => setIsGlobalSearchOpen(true)}
+              className="h-10 w-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 hover:bg-indigo-100 shadow-sm transition"
               title={
-                lang === "en" ? "Install App" : "App ကို သွင်းရန် (Install)"
+                lang === "en"
+                  ? "Search App"
+                  : lang === "zh"
+                  ? "搜索整个应用"
+                  : "တစ်ခုလုံး ရှာဖွေရန်"
               }
             >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Install App</span>
+              <Search className="h-4.5 w-4.5" />
+            </button>
+            <button
+              onClick={() => {
+                setModalTab("presets");
+                setIsColorModalOpen(true);
+              }}
+              className="h-10 px-3.5 rounded-full bg-pink-50 border border-pink-100 flex items-center gap-1.5 text-pink-600 hover:bg-pink-100 shadow-sm transition font-black text-[10px] uppercase tracking-wider"
+              title={
+                lang === "en" ? "Roster Theme" : "တာဝန်ချိန် ဆေးရောင်စုံ"
+              }
+            >
+              <Palette className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {lang === "en" ? "Theme" : "ဆေးရောင်"}
+              </span>
             </button>
           </div>
         </header>
@@ -989,6 +1178,9 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* OT List Section is buried under the codes for future activation when the user has the latest list and energy. */}
+                {/* <OTListWidget lang={lang} /> */}
               </motion.div>
             )}
 
@@ -1002,11 +1194,14 @@ export default function App() {
               >
                 <CalendarMatrix
                   onOpenThemeModal={() => setIsColorModalOpen(true)}
+                  isAdminUnlocked={isAdminUnlocked}
                 />
                 <p className="text-center text-[10px] text-slate-400 mt-2 font-medium px-4">
                   {lang === "en"
                     ? "Note: August and September rosters are algorithmic projections based on July's official roster."
-                    : "မှတ်ချက်။ ။ ဩဂုတ်နှင့် စက်တင်ဘာလ တာဝန်ချိန်များသည် ဇူလိုင်လ၏ တရားဝင်တာဝန်ချိန်ဇယားအပေါ် အခြေခံ၍ တွက်ချက်ထားခြင်းသာ ဖြစ်ပါသည်။"}
+                    : lang === "zh"
+                      ? "备注：八月和九月的排班表是根据七月的正式排班表算法投影计算的。"
+                      : "မှတ်ချက်။ ။ ဩဂုတ်လနှင့် စက်တင်ဘာလ ဂျူတီဇယားများသည် ဇူလိုင်လ ဂျူတီဇယားအပေါ် အခြေခံ၍ ခန့်မှန်းတွက်ချက်ထားခြင်း ဖြစ်ပါသည်။"}
                 </p>
               </motion.div>
             )}
@@ -1019,18 +1214,146 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                  <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-4">
-                    <NotebookPen className="h-6 w-6 text-indigo-500" />{" "}
-                    {lang === "en" ? "My Notes" : "မှတ်စုများ"}
-                  </h3>
-                  <NotesWidget activeDateStr={dateStr} />
-                  <p className="text-center text-[10px] text-slate-400 mt-4 font-medium flex items-center justify-center gap-1">
-                    <Lock className="h-3 w-3" />{" "}
-                    {lang === "en"
-                      ? "All notes are stored locally on your device. Privacy guaranteed."
-                      : "မှတ်စုများကို သင့်ဖုန်းထဲတွင်သာ သိမ်းဆည်းထားမည်ဖြစ်ပြီး လုံခြုံမှုအပြည့်အဝရှိပါသည်။"}
-                  </p>
+                <div className="bg-white p-5 sm:p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                  <div className="flex flex-col border-b border-slate-100 pb-4 mb-6">
+                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                      <Wrench className="h-6 w-6 text-indigo-500 animate-pulse" />{" "}
+                      {lang === "en"
+                        ? "OBGYN Utilities"
+                        : lang === "zh"
+                          ? "妇产科工具箱"
+                          : "ဆေးဘက်ဆိုင်ရာ ကိရိယာများ"}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-bold mt-1">
+                      {lang === "en"
+                        ? "Evidence-based OBGYN guidelines, clinical calculators, and memo notes"
+                        : lang === "zh"
+                          ? "循证医学指南、临床计算器与个人备忘录"
+                          : "သားဖွားမီးယပ် ညွှန်ကြားချက်များ၊ တွက်ချက်မှုများနှင့် မှတ်စုများ"}
+                    </p>
+                  </div>
+
+                  {/* 3 Buttons Side by Side with equal width just like Directory */}
+                  <div className="flex bg-slate-100/60 p-1 rounded-2xl mb-6 w-full gap-1">
+                    <button
+                      onClick={() => setUtilitySubTab("facts")}
+                      className={`flex-1 py-2 font-black text-[10px] sm:text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
+                        utilitySubTab === "facts"
+                          ? "bg-white text-indigo-700 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <BookOpen className="h-4 w-4 shrink-0" />
+                      <span>
+                        {lang === "en"
+                          ? "Facts"
+                          : lang === "zh"
+                            ? "医学指南"
+                            : "လမ်းညွှန်"}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setUtilitySubTab("calcs")}
+                      className={`flex-1 py-2 font-black text-[10px] sm:text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
+                        utilitySubTab === "calcs"
+                          ? "bg-white text-indigo-700 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <Calculator className="h-4 w-4 shrink-0" />
+                      <span>
+                        {lang === "en"
+                          ? "Calculator"
+                          : lang === "zh"
+                            ? "计算器"
+                            : "တွက်ချက်မှု"}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setUtilitySubTab("notes")}
+                      className={`flex-1 py-2 font-black text-[10px] sm:text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
+                        utilitySubTab === "notes"
+                          ? "bg-white text-indigo-700 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <NotebookPen className="h-4 w-4 shrink-0" />
+                      <span>
+                        {lang === "en"
+                          ? "Notes"
+                          : lang === "zh"
+                            ? "备忘录"
+                            : "မှတ်စုများ"}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Conditionally Render Active Tab's Panel */}
+                  <AnimatePresence mode="wait">
+                    {utilitySubTab === "facts" && (
+                      <motion.div
+                        key="facts"
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="bg-slate-50/55 p-4 rounded-3xl border border-slate-200/50 space-y-4 animate-in fade-in duration-200"
+                      >
+                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
+                          <BookOpen className="h-5 w-5 text-indigo-500 shrink-0" />
+                          <h4 className="font-extrabold text-sm text-slate-700">
+                            {lang === "en" ? "Guidelines & Facts" : lang === "zh" ? "循证医学指南" : "ညွှန်ကြားချက်များနှင့် အချက်အလက်များ"}
+                          </h4>
+                        </div>
+                        <OBGYNFacts />
+                      </motion.div>
+                    )}
+
+                    {utilitySubTab === "calcs" && (
+                      <motion.div
+                        key="calcs"
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="bg-slate-50/55 p-4 rounded-3xl border border-slate-200/50 space-y-4 animate-in fade-in duration-200"
+                      >
+                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
+                          <Calculator className="h-5 w-5 text-indigo-500 shrink-0" />
+                          <h4 className="font-extrabold text-sm text-slate-700">
+                            {lang === "en" ? "Calculators" : lang === "zh" ? "临床计算器" : "တွက်ချက်မှုများ"}
+                          </h4>
+                        </div>
+                        <OBGYNCalculators />
+                      </motion.div>
+                    )}
+
+                    {utilitySubTab === "notes" && (
+                      <motion.div
+                        key="notes"
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="bg-slate-50/55 p-4 rounded-3xl border border-slate-200/50 space-y-4 animate-in fade-in duration-200"
+                      >
+                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
+                          <NotebookPen className="h-5 w-5 text-indigo-500 shrink-0" />
+                          <h4 className="font-extrabold text-sm text-slate-700">
+                            {lang === "en" ? "Note Taking" : lang === "zh" ? "个人备忘录" : "မှတ်စုများ ရေးသားခြင်း"}
+                          </h4>
+                        </div>
+                        <div className="space-y-4">
+                          <NotesWidget activeDateStr={dateStr} />
+                          <p className="text-center text-[10px] text-slate-400 mt-4 font-medium flex items-center justify-center gap-1">
+                            <Lock className="h-3 w-3" />{" "}
+                            {lang === "en"
+                              ? "All notes are stored locally on your device. Privacy guaranteed."
+                              : lang === "zh"
+                                ? "所有笔记均保存在本地。保护您的隐私。"
+                                : "မှတ်စုများကို သင့်ဖုန်းထဲတွင်သာ သိမ်းဆည်းထားမည်ဖြစ်ပြီး လုံခြုံမှုအပြည့်အဝရှိပါသည်။"}
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             )}
@@ -1045,52 +1368,59 @@ export default function App() {
               >
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-6">
                   <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-4">
-                    <Settings className="h-6 w-6 text-slate-500" /> Settings
+                    <Settings className="h-6 w-6 text-slate-500" /> {SETTINGS_LANG[lang]?.title || "Settings"}
                   </h3>
 
                   <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex flex-col gap-3">
                     <div className="flex items-center gap-3 font-black text-slate-700">
-                      <Languages className="h-5 w-5 text-indigo-500" /> Choose
-                      Language
+                      <Languages className="h-5 w-5 text-indigo-500" /> {SETTINGS_LANG[lang]?.chooseLang || "Choose Language"}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <button
                         onClick={() => setLang("en")}
-                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${lang === "en" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                        className={`py-2 rounded-xl font-bold text-xs transition ${lang === "en" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
                       >
                         English
                       </button>
                       <button
                         onClick={() => setLang("mm")}
-                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${lang === "mm" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                        className={`py-2 rounded-xl font-bold text-xs transition ${lang === "mm" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
                       >
-                        မြန်မာ (Myanmar)
+                        မြန်မာ
+                      </button>
+                      <button
+                        onClick={() => {
+                          setChineseJokeOpen(true);
+                        }}
+                        className={`py-2 rounded-xl font-bold text-xs transition ${lang === "zh" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100 animate-pulse"}`}
+                      >
+                        中文
                       </button>
                     </div>
                   </div>
 
                   <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex flex-col gap-3">
                     <div className="flex items-center gap-3 font-black text-slate-700">
-                      <Moon className="h-5 w-5 text-indigo-500" /> Appearance
+                      <Moon className="h-5 w-5 text-indigo-500" /> {SETTINGS_LANG[lang]?.appearance || "Appearance"}
                     </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setAppTheme?.("light")}
                         className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "light" || !appTheme ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
                       >
-                        <Sun className="h-4 w-4 inline-block mr-1" /> Light
+                        <Sun className="h-4 w-4 inline-block mr-1" /> {SETTINGS_LANG[lang]?.light || "Light"}
                       </button>
                       <button
                         onClick={() => setAppTheme?.("dark")}
                         className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "dark" ? "bg-slate-700 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
                       >
-                        <Moon className="h-4 w-4 inline-block mr-1" /> Dark
+                        <Moon className="h-4 w-4 inline-block mr-1" /> {SETTINGS_LANG[lang]?.dark || "Dark"}
                       </button>
                       <button
                         onClick={() => setAppTheme?.("amoled")}
                         className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "amoled" ? "bg-black text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
                       >
-                        <Moon className="h-4 w-4 inline-block mr-1" /> AMOLED
+                        <Moon className="h-4 w-4 inline-block mr-1" /> {SETTINGS_LANG[lang]?.amoled || "AMOLED"}
                       </button>
                     </div>
                   </div>
@@ -1099,36 +1429,33 @@ export default function App() {
                     onClick={() => setInstallModalOpen(true)}
                     className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
                   >
-                    <Smartphone className="h-5 w-5 text-emerald-500" /> Install
-                    App
+                    <Smartphone className="h-5 w-5 text-emerald-500" /> {SETTINGS_LANG[lang]?.installApp || "Install App"}
                   </button>
                   {userGroup === "B" && (
                     <button
-                      onClick={() => setAdminAuthModalOpen(true)}
+                      onClick={() => setIsGroupBCalcsOpen(true)}
                       className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
                     >
-                      <Lock className="h-5 w-5 text-amber-500" /> "Admin Access"
+                      <ClipboardList className="h-5 w-5 text-indigo-500" /> Features exclusive to Group B
                     </button>
                   )}
                   <button
                     onClick={() => setAboutModalOpen(true)}
                     className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
                   >
-                    <Info className="h-5 w-5 text-amber-500" /> About App
+                    <Info className="h-5 w-5 text-amber-500" /> {SETTINGS_LANG[lang]?.aboutApp || "About App"}
                   </button>
                   <button
                     onClick={() => setAppTutorialOpen(true)}
                     className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
                   >
-                    <HelpCircle className="h-5 w-5 text-purple-500" /> App
-                    Tutorial
+                    <HelpCircle className="h-5 w-5 text-purple-500" /> {SETTINGS_LANG[lang]?.appFeatures || "App Features"}
                   </button>
                   <button
                     onClick={() => resetOnboarding()}
                     className="w-full p-4 rounded-2xl border border-slate-100 hover:border-red-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-red-50/50 transition flex items-center gap-3 text-red-600"
                   >
-                    <LogOut className="h-5 w-5 text-red-500" /> Change Role /
-                    Logout
+                    <LogOut className="h-5 w-5 text-red-500" /> {SETTINGS_LANG[lang]?.logout || "Change Role / Logout"}
                   </button>
                 </div>
               </motion.div>
@@ -1220,17 +1547,23 @@ export default function App() {
                   <div className="p-4 flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
                     {Object.keys(COLOR_PRESETS).map((presetKey) => {
                       const PRESET_LABELS: Record<string, string> = {
-                        pastel: "🌸 Pastel Gentle (Female)",
-                        blossom: "🌸 Cherry Blossom (Female)",
-                        lavender: "💜 Lavender Dream (Female)",
-                        peach: "🍑 Peach Coral (Female)",
-                        orchid: "🌺 Orchid Bloom (Female)",
-                        berry: "🍓 Very Berry (Female)",
-                        steel: "⚓ Steel Ocean (Male)",
-                        forest: "🌲 Forest Canopy (Male)",
-                        charcoal: "🕶️ Charcoal Amber (Male)",
+                        pastel: "🌸 Pastel Gentle",
+                        blossom: "🌸 Cherry Blossom",
+                        lavender: "💜 Lavender Dream",
+                        peach: "🍑 Peach Coral",
+                        orchid: "🌺 Orchid Bloom",
+                        berry: "🍓 Very Berry",
+                        steel: "⚓ Steel Ocean",
+                        forest: "🌲 Forest Canopy",
+                        charcoal: "🕶️ Charcoal Amber",
                         amoled: "🌌 True Black (AMOLED)",
                       };
+                      const gender =
+                        ["pastel", "blossom", "lavender", "peach", "orchid", "berry"].includes(presetKey)
+                          ? "female"
+                          : ["steel", "forest", "charcoal"].includes(presetKey)
+                            ? "male"
+                            : "none";
                       return (
                         <button
                           key={presetKey}
@@ -1241,7 +1574,18 @@ export default function App() {
                           }
                           className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex justify-between items-center"
                         >
-                          <span>{PRESET_LABELS[presetKey] || presetKey}</span>
+                          <span className="flex items-center gap-1.5">
+                            <span>{PRESET_LABELS[presetKey] || presetKey}</span>
+                            {gender === "female" && (
+                              <Venus className="h-4 w-4 text-pink-500 stroke-[3]" />
+                            )}
+                            {gender === "male" && (
+                              <Mars className="h-4 w-4 text-sky-500 stroke-[3]" />
+                            )}
+                            {presetKey === "amoled" && (
+                              <Moon className="h-3.5 w-3.5 text-purple-500 stroke-[3]" />
+                            )}
+                          </span>
                           <span className="flex gap-1">
                             {Object.values(
                               COLOR_PRESETS[
@@ -1350,47 +1694,128 @@ export default function App() {
                     <h4 className="font-black text-slate-800 text-sm mb-2 flex items-center gap-2">
                       📱 iOS / iPhone
                     </h4>
-                    <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
-                      <li>
-                        Open this site in <strong>Safari</strong>
-                      </li>
-                      <li>
-                        Tap the <strong>Share</strong> button{" "}
-                        <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
-                          ⍐
-                        </span>
-                      </li>
-                      <li>
-                        Scroll down and tap{" "}
-                        <strong>"Add to Home Screen"</strong>{" "}
-                        <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
-                          +
-                        </span>
-                      </li>
-                    </ol>
+                    {lang === "en" ? (
+                      <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
+                        <li>
+                          Open this site in <strong>Safari</strong>
+                        </li>
+                        <li>
+                          Tap the <strong>Share</strong> button{" "}
+                          <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
+                            ⍐
+                          </span>
+                        </li>
+                        <li>
+                          Scroll down and tap{" "}
+                          <strong>"Add to Home Screen"</strong>{" "}
+                          <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
+                            +
+                          </span>
+                        </li>
+                      </ol>
+                    ) : (
+                      <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
+                        <li>
+                          ဤဝက်ဘ်ဆိုက်ကို <strong>Safari</strong> ဖြင့် ဖွင့်ပါ
+                        </li>
+                        <li>
+                          <strong>Share (မျှဝေရန်)</strong> ခလုတ်ကို နှိပ်ပါ{" "}
+                          <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
+                            ⍐
+                          </span>
+                        </li>
+                        <li>
+                          အောက်သို့ရွှေ့ပြီး <strong>"Add to Home Screen" (ပင်မမျက်နှာပြင်သို့ထည့်ရန်)</strong> ကို နှိပ်ပါ{" "}
+                          <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
+                            +
+                          </span>
+                        </li>
+                      </ol>
+                    )}
                   </div>
                   <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4">
                     <h4 className="font-black text-slate-800 text-sm mb-2 flex items-center gap-2">
                       🤖 Android
                     </h4>
-                    <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
-                      <li>
-                        Open this site in <strong>Chrome</strong>
-                      </li>
-                      <li>
-                        Tap the <strong>Menu</strong> icon (three dots)
-                      </li>
-                      <li>
-                        Tap <strong>"Add to Home screen"</strong> or{" "}
-                        <strong>"Install app"</strong>
-                      </li>
-                    </ol>
+                    {lang === "en" ? (
+                      <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
+                        <li>
+                          Open this site in <strong>Chrome</strong>
+                        </li>
+                        <li>
+                          Tap the <strong>Menu</strong> icon (three dots)
+                        </li>
+                        <li>
+                          Tap <strong>"Add to Home screen"</strong> or{" "}
+                          <strong>"Install app"</strong>
+                        </li>
+                      </ol>
+                    ) : (
+                      <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
+                        <li>
+                          ဤဝက်ဘ်ဆိုက်ကို <strong>Chrome</strong> ဖြင့် ဖွင့်ပါ
+                        </li>
+                        <li>
+                          <strong>Menu (အစက်သုံးစက်)</strong> အိုင်ကွန်ကို နှိပ်ပါ
+                        </li>
+                        <li>
+                          <strong>"Add to Home screen"</strong> သို့မဟုတ်{" "}
+                          <strong>"Install app" (အက်ပ်သွင်းရန်)</strong> ကို နှိပ်ပါ
+                        </li>
+                      </ol>
+                    )}
                   </div>
                   <button
                     onClick={() => setInstallModalOpen(false)}
                     className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-200 transition"
                   >
-                    Got it
+                    {lang === "en" ? "Got it" : "နားလည်ပါပြီ"}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* CHINESE LANGUAGE JOKE MODAL */}
+        <AnimatePresence>
+          {chineseJokeOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 border border-rose-100 text-center space-y-4"
+              >
+                <div className="mx-auto w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center text-lg animate-bounce">
+                  ⚠️
+                </div>
+                <h3 className="text-lg font-black text-rose-600">
+                  {lang === "en" ? "Warning!" : "သတိပေးချက်!"}
+                </h3>
+                <p className="text-sm text-slate-700 font-bold leading-relaxed px-2">
+                  Learn Chinese first, you silly son of a bitch! 😂
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => setChineseJokeOpen(false)}
+                    className="w-full py-4 px-6 bg-gradient-to-r from-rose-500 via-pink-500 to-indigo-500 hover:from-rose-600 hover:to-indigo-600 text-white rounded-2xl font-black text-base transition active:scale-95 shadow-lg shadow-pink-500/25 ring-2 ring-pink-300"
+                  >
+                    {lang === "en" ? "Okay, sorry! 🤐" : "ကောင်းပါပြီ၊ ဆောရီးပါ! 🤐"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLang("zh");
+                      setChineseJokeOpen(false);
+                    }}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-xl font-bold text-xs transition active:scale-95 border border-slate-200"
+                  >
+                    I'm Chinese, you jackass 😈
                   </button>
                 </div>
               </motion.div>
@@ -1415,8 +1840,8 @@ export default function App() {
               >
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                   <h3 className="text-md font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                    <HelpCircle className="h-5 w-5 text-purple-500" /> App
-                    Tutorial
+                    <HelpCircle className="h-5 w-5 text-purple-500" />{" "}
+                    {lang === "en" ? "App Features" : "အက်ပ်၏ လုပ်ဆောင်ချက်များ"}
                   </h3>
                   <button
                     onClick={() => setAppTutorialOpen(false)}
@@ -1485,6 +1910,193 @@ export default function App() {
                         : "ပြက္ခဒိန်တွင် ရက်စွဲကိုနှိပ်၍ မှတ်စုများ ရေးမှတ်နိုင်ပါသည်။ မှတ်စုများအားလုံးကို သင့်ဖုန်းတွင်သာ သိမ်းဆည်းထားမည်ဖြစ်၍ လုံခြုံမှုအပြည့်အဝရှိပါသည်။"}
                     </p>
                   </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* GLOBAL SEARCH MODAL */}
+        <AnimatePresence>
+          {isGlobalSearchOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              id="global-search-overlay"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 flex flex-col max-h-[85vh]"
+                id="global-search-modal"
+              >
+                {/* Search input header */}
+                <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
+                  <Search className="h-5 w-5 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={globalSearchQuery}
+                    onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                    placeholder={
+                      lang === "en"
+                        ? "Search directory, facts, or notes..."
+                        : lang === "zh"
+                        ? "搜索通讯录、指南或笔记..."
+                        : "ဖုန်းနံပါတ်၊ လမ်းညွှန် သို့မဟုတ် မှတ်စုများ ရှာရန်..."
+                    }
+                    className="w-full bg-transparent text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      setIsGlobalSearchOpen(false);
+                      setGlobalSearchQuery("");
+                    }}
+                    className="p-1.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Results area */}
+                <div className="p-4 overflow-y-auto flex-1 space-y-6">
+                  {!globalSearchQuery.trim() ? (
+                    <div className="text-center py-12 text-slate-400 space-y-2">
+                      <Search className="h-10 w-10 mx-auto opacity-30 stroke-[1.5]" />
+                      <p className="text-xs font-bold uppercase tracking-widest">
+                        {lang === "en"
+                          ? "Type to search everything"
+                          : lang === "zh"
+                          ? "输入内容开始搜索"
+                          : "ရှာဖွေရန် စာလုံးရိုက်ထည့်ပါ"}
+                      </p>
+                    </div>
+                  ) : (globalSearchResults.directory.length === 0 &&
+                       globalSearchResults.facts.length === 0 &&
+                       globalSearchResults.notes.length === 0) ? (
+                    <div className="text-center py-12 text-slate-400 space-y-2">
+                      <p className="text-xs font-bold uppercase tracking-widest">
+                        {lang === "en"
+                          ? "No matches found"
+                          : lang === "zh"
+                          ? "未找到匹配项"
+                          : "ရှာမတွေ့ပါ"}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* 1. Directory Results */}
+                      {globalSearchResults.directory.length > 0 && (
+                        <div className="space-y-2.5">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 px-1">
+                            <Users className="h-3 w-3" />
+                            {lang === "en" ? "Directory" : lang === "zh" ? "通讯录" : "ဖုန်းနံပါတ် လမ်းညွှန်"}
+                          </h4>
+                          <div className="space-y-2">
+                            {globalSearchResults.directory.map((item, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  setCurrentTab("directory");
+                                  setIsGlobalSearchOpen(false);
+                                  setGlobalSearchQuery("");
+                                }}
+                                className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-100 transition cursor-pointer flex items-center justify-between"
+                              >
+                                <div>
+                                  <div className="font-bold text-slate-800 text-sm">
+                                    {translateName(item.name, lang)}
+                                  </div>
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    {item.category}
+                                  </div>
+                                </div>
+                                {item.phone && (
+                                  <a
+                                    href={`tel:${item.phone}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full transition flex items-center justify-center"
+                                  >
+                                    <Phone className="h-4 w-4" />
+                                  </a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2. Facts / Guidelines Results */}
+                      {globalSearchResults.facts.length > 0 && (
+                        <div className="space-y-2.5">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 px-1">
+                            <BookOpen className="h-3 w-3" />
+                            {lang === "en" ? "Medical Facts & Guidelines" : lang === "zh" ? "医学指南与知识" : "ဆေးပညာ လမ်းညွှန်ချက်များ"}
+                          </h4>
+                          <div className="space-y-2">
+                            {globalSearchResults.facts.map((item, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  setCurrentTab("notes");
+                                  setUtilitySubTab("facts");
+                                  setIsGlobalSearchOpen(false);
+                                  setGlobalSearchQuery("");
+                                }}
+                                className="p-3 bg-indigo-50/30 hover:bg-indigo-50/60 rounded-2xl border border-indigo-50 transition cursor-pointer space-y-1.5"
+                              >
+                                <div className="font-bold text-indigo-950 text-sm">
+                                  {item.title}
+                                </div>
+                                <p className="text-xs text-indigo-900/80 font-medium line-clamp-2 leading-relaxed">
+                                  {item.subtitle}
+                                </p>
+                                <div className="text-[9px] font-bold text-indigo-400/80 uppercase tracking-widest">
+                                  Ref: {item.reference}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. Notes Results */}
+                      {globalSearchResults.notes.length > 0 && (
+                        <div className="space-y-2.5">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 px-1">
+                            <FileText className="h-3 w-3" />
+                            {lang === "en" ? "My Saved Notes" : lang === "zh" ? "我的笔记" : "ကိုယ်ပိုင်မှတ်စုများ"}
+                          </h4>
+                          <div className="space-y-2">
+                            {globalSearchResults.notes.map((item) => (
+                              <div
+                                key={item.id}
+                                onClick={() => {
+                                  setCurrentTab("notes");
+                                  setUtilitySubTab("notes");
+                                  setIsGlobalSearchOpen(false);
+                                  setGlobalSearchQuery("");
+                                }}
+                                className="p-3 bg-amber-50/40 hover:bg-amber-50/70 rounded-2xl border border-amber-100 transition cursor-pointer space-y-1.5"
+                              >
+                                {item.title && (
+                                  <div className="font-bold text-amber-950 text-sm">
+                                    {item.title}
+                                  </div>
+                                )}
+                                <p className="text-xs text-amber-900/80 font-medium line-clamp-2 leading-relaxed">
+                                  {item.text}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </motion.div>
             </motion.div>
@@ -1607,6 +2219,71 @@ export default function App() {
           )}
         </AnimatePresence>
 
+        {/* GROUP B CALCULATIONS MODAL */}
+        <AnimatePresence>
+          {isGroupBCalcsOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-6 border border-slate-100 max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                  <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <ClipboardList className="h-5 w-5 text-indigo-500" />
+                    Group B Exclusive: Duty Balance & Fairness Audit
+                  </h3>
+                  <button
+                    onClick={() => setIsGroupBCalcsOpen(false)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition text-xs font-black shadow-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+                <AdminAudit
+                  activeDateStr={dateStr}
+                  onLockDatabase={() => setIsGroupBCalcsOpen(false)}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* FLOATING ADMIN WARNING BANNER */}
+        <AnimatePresence>
+          {isAdminUnlocked && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-amber-500 text-white p-3.5 rounded-2xl shadow-2xl border border-amber-400 z-50 flex items-center justify-between gap-3 font-semibold text-xs"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚠️</span>
+                <span>
+                  <strong>Admin Access Active</strong><br />
+                  Changes will apply to all users.
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAdminUnlocked(false);
+                  setCurrentTab("settings");
+                }}
+                className="bg-white text-amber-600 px-2.5 py-1.5 rounded-xl font-black shadow-sm hover:bg-slate-100 transition whitespace-nowrap"
+              >
+                Exit Admin
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* 7. BOTTOM NAVIGATION BAR */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] z-40 pb-safe px-2">
           <div className="max-w-2xl mx-auto flex justify-between items-end pb-2 pt-2">
@@ -1623,7 +2300,7 @@ export default function App() {
             >
               <CalendarIcon className="h-5 w-5" />
               <span className="text-[9px] font-bold uppercase tracking-widest">
-                Roster
+                {lang === "en" ? "Roster" : lang === "zh" ? "值班表" : "တာဝန်ဇယား"}
               </span>
             </button>
 
@@ -1640,7 +2317,7 @@ export default function App() {
             >
               <Users className="h-5 w-5" />
               <span className="text-[9px] font-bold uppercase tracking-widest">
-                Directory
+                {lang === "en" ? "Directory" : lang === "zh" ? "通讯录" : "လမ်းညွှန်"}
               </span>
             </button>
 
@@ -1658,7 +2335,7 @@ export default function App() {
               >
                 <Activity className="h-6 w-6 mb-0.5" />
                 <span className="text-[8px] font-black uppercase tracking-widest">
-                  Today
+                  {lang === "en" ? "Today" : lang === "zh" ? "今日" : "ယနေ့"}
                 </span>
               </button>
             </div>
@@ -1674,9 +2351,9 @@ export default function App() {
                   : "text-slate-400 hover:text-slate-600"
               }`}
             >
-              <NotebookPen className="h-5 w-5" />
-              <span className="text-[9px] font-bold uppercase tracking-widest">
-                Notes
+              <Wrench className="h-5 w-5" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-center truncate w-full max-w-[64px]">
+                {lang === "en" ? "Utilities" : lang === "zh" ? "工具" : "ကိရိယာများ"}
               </span>
             </button>
 
@@ -1693,7 +2370,7 @@ export default function App() {
             >
               <Settings className="h-5 w-5" />
               <span className="text-[9px] font-bold uppercase tracking-widest">
-                Settings
+                {lang === "en" ? "Settings" : lang === "zh" ? "设置" : "ပြင်ဆင်မှု"}
               </span>
             </button>
           </div>

@@ -10,21 +10,30 @@ export interface AppState {
   userRole: string | null;
   userGroup: string | null;
   currentTab: string;
-  lang: "en" | "mm";
+  lang: "en" | "mm" | "zh";
   isDarkMode: boolean;
   appTheme?: "light" | "dark" | "amoled";
   setAppTheme: (theme: "light" | "dark" | "amoled") => void;
   theme: { [role: string]: ThemeColors };
   customDays: Record<string, { color: string; text: string }>;
+  globalCustomDays: Record<string, { color: string; text: string }>;
+  globalRosterOverrides: Record<string, Record<string, string>>;
+  personalRosterOverrides: Record<string, Record<string, string>>;
 
   setUserRole: (role: string | null) => void;
   setUserGroup: (group: string | null) => void;
   setCurrentTab: (tab: string) => void;
-  setLang: (lang: "en" | "mm") => void;
+  setLang: (lang: "en" | "mm" | "zh") => void;
   setIsDarkMode: (isDark: boolean) => void;
   setTheme: (theme: { [role: string]: ThemeColors }) => void;
   setCustomDay: (dateStr: string, color: string, text: string) => void;
   clearCustomDay: (dateStr: string) => void;
+  setGlobalCustomDay: (dateStr: string, color: string, text: string) => void;
+  clearGlobalCustomDay: (dateStr: string) => void;
+  setGlobalRosterOverride: (dateStr: string, group: string, role: string) => void;
+  setPersonalRosterOverride: (dateStr: string, group: string, role: string) => void;
+  clearGlobalRosterOverrides: (dateStr: string) => void;
+  clearPersonalRosterOverrides: (dateStr: string) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -37,6 +46,9 @@ export const useStore = create<AppState>()(
       appTheme: "light",
       isDarkMode: window.matchMedia("(prefers-color-scheme: dark)").matches,
       customDays: {},
+      globalCustomDays: {},
+      globalRosterOverrides: {},
+      personalRosterOverrides: {},
       theme: {
         Duty: { bg: "#db2777", text: "#ffffff" },
         Pre: { bg: "#fdf2f8", text: "#db2777" },
@@ -78,6 +90,51 @@ export const useStore = create<AppState>()(
           delete newCustomDays[dateStr];
           return { customDays: newCustomDays };
         }),
+      setGlobalCustomDay: (dateStr, color, text) =>
+        set((state) => ({
+          globalCustomDays: {
+            ...state.globalCustomDays,
+            [dateStr]: { color, text },
+          },
+        })),
+      clearGlobalCustomDay: (dateStr) =>
+        set((state) => {
+          const newGlobalCustomDays = { ...state.globalCustomDays };
+          delete newGlobalCustomDays[dateStr];
+          return { globalCustomDays: newGlobalCustomDays };
+        }),
+      setGlobalRosterOverride: (dateStr, group, role) =>
+        set((state) => {
+          const dayOverrides = state.globalRosterOverrides[dateStr] || {};
+          return {
+            globalRosterOverrides: {
+              ...state.globalRosterOverrides,
+              [dateStr]: { ...dayOverrides, [group]: role },
+            },
+          };
+        }),
+      setPersonalRosterOverride: (dateStr, group, role) =>
+        set((state) => {
+          const dayOverrides = state.personalRosterOverrides[dateStr] || {};
+          return {
+            personalRosterOverrides: {
+              ...state.personalRosterOverrides,
+              [dateStr]: { ...dayOverrides, [group]: role },
+            },
+          };
+        }),
+      clearGlobalRosterOverrides: (dateStr) =>
+        set((state) => {
+          const newOverrides = { ...state.globalRosterOverrides };
+          delete newOverrides[dateStr];
+          return { globalRosterOverrides: newOverrides };
+        }),
+      clearPersonalRosterOverrides: (dateStr) =>
+        set((state) => {
+          const newOverrides = { ...state.personalRosterOverrides };
+          delete newOverrides[dateStr];
+          return { personalRosterOverrides: newOverrides };
+        }),
     }),
     {
       name: "oghub-preferences",
@@ -89,6 +146,9 @@ export const useStore = create<AppState>()(
         appTheme: state.appTheme,
         theme: state.theme,
         customDays: state.customDays,
+        globalCustomDays: state.globalCustomDays,
+        globalRosterOverrides: state.globalRosterOverrides,
+        personalRosterOverrides: state.personalRosterOverrides,
       }),
     },
   ),

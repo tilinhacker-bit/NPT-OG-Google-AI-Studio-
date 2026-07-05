@@ -1,117 +1,20 @@
+import re
+
 with open('src/components/DirectoryTab.tsx', 'r') as f:
     content = f.read()
 
-new_content = """import React from 'react';
-import { Users } from 'lucide-react';
-import { DATA, MM_NAMES } from '../data';
-import { useStore } from '../store/useStore';
-
-export function translateName(name: string, lang: 'en' | 'mm'): string {
-  if (lang === 'en') return name;
-  let translated = name;
-  for (const [enName, mmName] of Object.entries(MM_NAMES)) {
-    if (translated.includes(enName)) {
-      translated = translated.replace(enName, mmName);
-    }
-  }
-  return translated;
-}
-
-export function DirectoryTab() {
-  const { lang } = useStore();
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-6">
-        <h3 className="text-lg font-black text-slate-800 mb-2 flex items-center gap-2">
-          <Users className="h-5 w-5 text-indigo-500" /> Department Directory
-        </h3>
-        
-        <div className="space-y-4">
-          {DATA.directory_layout.map((section, idx) => (
-            <div key={idx} className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-              <div className="bg-slate-50 p-3 border-b border-slate-100 font-black text-slate-700 text-[10px] uppercase tracking-wider">
-                {section.header}
-              </div>
-              <div className="p-3 space-y-2">
-                {section.contacts.map((doc, i) => (
-                  <div key={doc.name + i} className="flex justify-between items-center text-xs font-semibold text-slate-700">
-                    <span className="truncate pr-1">{translateName(doc.name, lang)}</span>
-                    {doc.phone && (
-                      <a 
-                        href={`tel:${doc.phone}`} 
-                        className="bg-white text-slate-600 px-2 py-0.5 rounded-md border border-slate-200 shadow-sm text-[9px] font-bold shrink-0"
-                      >
-                        📱 {doc.phone}
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-            <div className="bg-slate-50 p-3 border-b border-slate-100 font-black text-slate-700 text-[10px] uppercase tracking-wider">
-              Assistant Surgeons (AS)
-            </div>
-            <div className="p-3 space-y-4">
-              {['1', '2', '3'].map(g => (
-                <div key={g}>
-                  <div className="text-[10px] font-bold text-slate-400 mb-2">Group {g}</div>
-                  <div className="space-y-2">
-                    {(DATA.as_directory[g] || []).map((doc, i) => (
-                      <div key={doc.name + i} className="flex justify-between items-center text-xs font-semibold text-slate-700">
-                        <span className="truncate pr-1">{translateName(doc.name, lang)}</span>
-                        {doc.phone && (
-                          <a 
-                            href={`tel:${doc.phone}`} 
-                            className="bg-white text-slate-600 px-2 py-0.5 rounded-md border border-slate-200 shadow-sm text-[9px] font-bold shrink-0"
-                          >
-                            📱 {doc.phone}
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+# Let's fix the end of the file where the syntax error is
+bad_end = """          </div>
                 </div>
-              ))}
-            </div>
-          </div>
+                )}
+                {subTab === "useful" && ("""
 
-          <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-            <div className="bg-slate-50 p-3 border-b border-slate-100 font-black text-slate-700 text-[10px] uppercase tracking-wider">
-              House Officers (HO)
-            </div>
-            <div className="p-3 space-y-4">
-              {['A', 'B', 'C', 'D'].map(g => (
-                <div key={g}>
-                  <div className="text-[10px] font-bold text-slate-400 mb-2">Group {g}</div>
-                  <div className="space-y-2">
-                    {(DATA.ho_directory[g] || []).map((doc, i) => (
-                      <div key={doc.name + i} className="flex justify-between items-center text-xs font-semibold text-slate-700">
-                        <span className="truncate pr-1">{translateName(doc.name, lang)}</span>
-                        {doc.phone && (
-                          <a 
-                            href={`tel:${doc.phone}`} 
-                            className="bg-white text-slate-600 px-2 py-0.5 rounded-md border border-slate-200 shadow-sm text-[9px] font-bold shrink-0"
-                          >
-                            📱 {doc.phone}
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-"""
+good_end = """          </div>
+        )}
+        {subTab === "useful" && ("""
+
+content = content.replace(bad_end, good_end)
 
 with open('src/components/DirectoryTab.tsx', 'w') as f:
-    f.write(new_content)
+    f.write(content)
+print("Fixed syntax")

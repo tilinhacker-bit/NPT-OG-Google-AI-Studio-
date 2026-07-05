@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { 
-  Heart, 
-  Calendar as CalendarIcon, 
-  Users, 
-  Phone, 
-  Palette, 
-  Lock, 
-  Unlock, 
-  Info, 
-  ChevronDown, 
-  ChevronUp, 
-  Download, 
-  Languages, 
-  Activity, 
-  ArrowLeft, 
-  ArrowRight, 
+import {
+  Heart,
+  Calendar as CalendarIcon,
+  Users,
+  Phone,
+  Palette,
+  Lock,
+  Unlock,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Languages,
+  Activity,
+  ArrowLeft,
+  ArrowRight,
   X,
   Smartphone,
   Sparkles,
@@ -29,11 +29,15 @@ import {
   HelpCircle,
   Moon,
   Sun,
-  Bell
+  Bell,
+  Camera,
+  CalendarClock,
+  NotebookPen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { DATA, MM_NAMES, RosterDay, Contact, DailyInfo } from "./data";
 import { masterRoster } from "./utils/roster";
+import { isWeekend, isHoliday } from "./utils/dateLogic";
 import { addDays } from "date-fns";
 import { CalendarMatrix } from "./components/CalendarMatrix";
 import { DirectoryTab } from "./components/DirectoryTab";
@@ -41,8 +45,16 @@ import { NotesWidget } from "./components/NotesWidget";
 import { AdminAudit } from "./components/AdminAudit";
 import { useStore } from "./store/useStore";
 
-function translateName(name: string, lang: 'en' | 'mm'): string {
-  if (lang === 'en') return name;
+function getInitials(name: string): string {
+  let cleanName = name.replace(/Dr\.?\s*/gi, "").trim();
+  return cleanName
+    .split(/\s+/)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function translateName(name: string, lang: "en" | "mm"): string {
+  if (lang === "en") return name;
   let translated = name;
   for (const [enName, mmName] of Object.entries(MM_NAMES)) {
     if (translated.includes(enName)) {
@@ -53,111 +65,95 @@ function translateName(name: string, lang: 'en' | 'mm'): string {
 }
 
 const LABELS: { [key: string]: string } = {
-  'Duty': 'Duty',
-  'Pre': 'Pre-Duty',
-  'Ord': 'Ordinary',
-  'Off': 'Night Off',
-  'Rest': 'Day Off',
-  'Anes': 'ANA'
+  Duty: "Duty",
+  Pre: "Ordinary/Pre-Duty",
+  Ord: "Ordinary",
+  Off: "Night Off",
+  Rest: "Day Off",
+  Anes: "ANA",
 };
 
 const COLOR_PRESETS = {
   pastel: {
-    'Duty': { bg: '#ffe4e6', text: '#be123c' },
-    'Pre': { bg: '#ffedd5', text: '#ea580c' },
-    'Ord': { bg: '#e0f2fe', text: '#0369a1' },
-    'Off': { bg: '#f1f5f9', text: '#64748b' },
-    'Rest': { bg: '#ccfbf1', text: '#0f766e' },
-    'Anes': { bg: '#f3e8ff', text: '#7e22ce' }
+    Duty: { bg: "#db2777", text: "#ffffff" }, // Heavy Fuchsia (Heavy continuous work)
+    Pre: { bg: "#fdf2f8", text: "#db2777" }, // Soft light pink (Light 8-4 work)
+    Ord: { bg: "#fdf2f8", text: "#db2777" }, // Soft light pink (Light 8-4 work)
+    Off: { bg: "#f3e8ff", text: "#6b21a8" }, // Dreamy sleepy lavender (Night off)
+    Rest: { bg: "#22c55e", text: "#ffffff" }, // Joyful green (Very happy day off)
+    Anes: { bg: "#ccfbf1", text: "#0f766e" }, // Clean medical teal (Other rotation)
   },
-  vibrant: {
-    'Duty': { bg: '#fecaca', text: '#991b1b' },
-    'Pre': { bg: '#fed7aa', text: '#9a3412' },
-    'Ord': { bg: '#bae6fd', text: '#075985' },
-    'Off': { bg: '#e2e8f0', text: '#475569' },
-    'Rest': { bg: '#a7f3d0', text: '#065f46' },
-    'Anes': { bg: '#e9d5ff', text: '#5b21b6' }
-  },
-  ocean: {
-    'Duty': { bg: '#e0f2fe', text: '#0369a1' },
-    'Pre': { bg: '#bae6fd', text: '#075985' },
-    'Ord': { bg: '#38bdf8', text: '#0369a1' },
-    'Off': { bg: '#f0f9ff', text: '#0891b2' },
-    'Rest': { bg: '#06b6d4', text: '#ffffff' },
-    'Anes': { bg: '#0891b2', text: '#ffffff' }
-  },
-  monochrome: {
-    'Duty': { bg: '#334155', text: '#ffffff' },
-    'Pre': { bg: '#475569', text: '#ffffff' },
-    'Ord': { bg: '#64748b', text: '#ffffff' },
-    'Off': { bg: '#f1f5f9', text: '#334155' },
-    'Rest': { bg: '#cbd5e1', text: '#0f172a' },
-    'Anes': { bg: '#0f172a', text: '#ffffff' }
-  },
-  sunset: {
-    'Duty': { bg: '#fef08a', text: '#854d0e' },
-    'Pre': { bg: '#fed7aa', text: '#9a3412' },
-    'Ord': { bg: '#fca5a5', text: '#7f1d1d' },
-    'Off': { bg: '#e5e7eb', text: '#374151' },
-    'Rest': { bg: '#fef9c3', text: '#a16207' },
-    'Anes': { bg: '#fbcfe8', text: '#831843' }
-  },
-  forest: {
-    'Duty': { bg: '#dcfce7', text: '#166534' },
-    'Pre': { bg: '#bbf7d0', text: '#14532d' },
-    'Ord': { bg: '#86efac', text: '#14532d' },
-    'Off': { bg: '#f3f4f6', text: '#1f2937' },
-    'Rest': { bg: '#ecfccb', text: '#3f6212' },
-    'Anes': { bg: '#d9f99d', text: '#3f6212' }
+  blossom: {
+    Duty: { bg: "#e11d48", text: "#ffffff" }, // Heavy striking rose red
+    Pre: { bg: "#fff1f2", text: "#be123c" }, // Extremely soft pale blush
+    Ord: { bg: "#fff1f2", text: "#be123c" }, // Extremely soft pale blush
+    Off: { bg: "#e0e7ff", text: "#3730a3" }, // Sleepy dusty periwinkle
+    Rest: { bg: "#10b981", text: "#ffffff" }, // Cheerful happy emerald green
+    Anes: { bg: "#ffedd5", text: "#c2410c" }, // Warm clinical bronze/orange
   },
   lavender: {
-    'Duty': { bg: '#f3e8ff', text: '#6b21a8' },
-    'Pre': { bg: '#e9d5ff', text: '#581c87' },
-    'Ord': { bg: '#d8b4fe', text: '#4c1d95' },
-    'Off': { bg: '#f8fafc', text: '#475569' },
-    'Rest': { bg: '#fae8ff', text: '#701a75' },
-    'Anes': { bg: '#f5d0fe', text: '#701a75' }
+    Duty: { bg: "#7e22ce", text: "#ffffff" }, // Heavy dark royal purple
+    Pre: { bg: "#faf5ff", text: "#7e22ce" }, // Lightest whisper violet
+    Ord: { bg: "#faf5ff", text: "#7e22ce" }, // Lightest whisper violet
+    Off: { bg: "#ebd5ff", text: "#5b21b6" }, // Sleepy soothing mauve
+    Rest: { bg: "#4ade80", text: "#14532d" }, // Joyful mint green
+    Anes: { bg: "#e5e7eb", text: "#374151" }, // Neutral rotation silver-grey
   },
-  midnight: {
-    'Duty': { bg: '#1e1b4b', text: '#c7d2fe' },
-    'Pre': { bg: '#312e81', text: '#e0e7ff' },
-    'Ord': { bg: '#3730a3', text: '#e0e7ff' },
-    'Off': { bg: '#0f172a', text: '#cbd5e1' },
-    'Rest': { bg: '#172554', text: '#dbeafe' },
-    'Anes': { bg: '#1e3a8a', text: '#dbeafe' }
+  peach: {
+    Duty: { bg: "#ea580c", text: "#ffffff" }, // Heavy fiery deep coral/orange
+    Pre: { bg: "#fff7ed", text: "#c2410c" }, // Lightest soft apricot cream
+    Ord: { bg: "#fff7ed", text: "#c2410c" }, // Lightest soft apricot cream
+    Off: { bg: "#e0f2fe", text: "#0369a1" }, // Soft dreamy sleep blue
+    Rest: { bg: "#fbbf24", text: "#78350f" }, // Bright happy golden sunshine
+    Anes: { bg: "#f3e8ff", text: "#7e22ce" }, // Clinical lilac
   },
-  cherry: {
-    'Duty': { bg: '#ffe4e6', text: '#9f1239' },
-    'Pre': { bg: '#fecdd3', text: '#881337' },
-    'Ord': { bg: '#fda4af', text: '#881337' },
-    'Off': { bg: '#f1f5f9', text: '#475569' },
-    'Rest': { bg: '#fee2e2', text: '#7f1d1d' },
-    'Anes': { bg: '#ffedd5', text: '#7c2d12' }
+  orchid: {
+    Duty: { bg: "#c026d3", text: "#ffffff" }, // Rich striking heavy magenta
+    Pre: { bg: "#fdf4ff", text: "#a21caf" }, // Pale lavender blossom
+    Ord: { bg: "#fdf4ff", text: "#a21caf" }, // Pale lavender blossom
+    Off: { bg: "#e2e8f0", text: "#334155" }, // Sleepy dusty grey slate
+    Rest: { bg: "#2dd4bf", text: "#042f2e" }, // Happy vibrant hospital turquoise
+    Anes: { bg: "#fef3c7", text: "#92400e" }, // Amber clinical rotation
   },
-  amber: {
-    'Duty': { bg: '#fef3c7', text: '#92400e' },
-    'Pre': { bg: '#fde68a', text: '#78350f' },
-    'Ord': { bg: '#fcd34d', text: '#78350f' },
-    'Off': { bg: '#f3f4f6', text: '#374151' },
-    'Rest': { bg: '#fef9c3', text: '#713f12' },
-    'Anes': { bg: '#ffedd5', text: '#7c2d12' }
+  berry: {
+    Duty: { bg: "#be185d", text: "#ffffff" }, // Striking heavy dark pink/burgundy
+    Pre: { bg: "#fff1f2", text: "#be123c" }, // Soft pink powder
+    Ord: { bg: "#fff1f2", text: "#be123c" }, // Soft pink powder
+    Off: { bg: "#ede9fe", text: "#5b21b6" }, // Sleepy lavender mist
+    Rest: { bg: "#16a34a", text: "#ffffff" }, // Joyful lush green
+    Anes: { bg: "#d1fae5", text: "#065f46" }, // Medical pale mint
   },
-  emerald: {
-    'Duty': { bg: '#d1fae5', text: '#065f46' },
-    'Pre': { bg: '#a7f3d0', text: '#064e3b' },
-    'Ord': { bg: '#6ee7b7', text: '#064e3b' },
-    'Off': { bg: '#f1f5f9', text: '#334155' },
-    'Rest': { bg: '#ecfdf5', text: '#022c22' },
-    'Anes': { bg: '#ccfbf1', text: '#115e59' }
+  steel: {
+    Duty: { bg: "#1e3a8a", text: "#ffffff" }, // Heavy strong ocean navy
+    Pre: { bg: "#f0f9ff", text: "#0369a1" }, // Pale cool light ice-blue
+    Ord: { bg: "#f0f9ff", text: "#0369a1" }, // Pale cool light ice-blue
+    Off: { bg: "#f1f5f9", text: "#475569" }, // Sleepy dim slate-blue
+    Rest: { bg: "#22c55e", text: "#ffffff" }, // Joyful energetic green
+    Anes: { bg: "#ffedd5", text: "#ea580c" }, // Clinical bronze orange
   },
-  ruby: {
-    'Duty': { bg: '#ffe4e6', text: '#be123c' },
-    'Pre': { bg: '#fecdd3', text: '#9f1239' },
-    'Ord': { bg: '#fda4af', text: '#881337' },
-    'Off': { bg: '#e5e7eb', text: '#1f2937' },
-    'Rest': { bg: '#fff1f2', text: '#4c0519' },
-    'Anes': { bg: '#ffe4e6', text: '#881337' }
-  }
+  forest: {
+    Duty: { bg: "#14532d", text: "#ffffff" }, // Bold heavy pine green
+    Pre: { bg: "#f0fdf4", text: "#166534" }, // Soft pale sage light-work
+    Ord: { bg: "#f0fdf4", text: "#166534" }, // Soft pale sage light-work
+    Off: { bg: "#334155", text: "#ffffff" }, // Sleepy dim forest charcoal
+    Rest: { bg: "#fbbf24", text: "#78350f" }, // Cheerful golden-harvest day off
+    Anes: { bg: "#ecfeff", text: "#0891b2" }, // External clinical cyan rotation
+  },
+  charcoal: {
+    Duty: { bg: "#0f172a", text: "#ffffff" }, // Striking jet slate-black
+    Pre: { bg: "#f8fafc", text: "#475569" }, // Lightest fog-white
+    Ord: { bg: "#f8fafc", text: "#475569" }, // Lightest fog-white
+    Off: { bg: "#e0e7ff", text: "#1d4ed8" }, // Sleepy dim twilight indigo
+    Rest: { bg: "#f97316", text: "#ffffff" }, // Bright joyful solar orange
+    Anes: { bg: "#f3e8ff", text: "#6b21a8" }, // Clinical deep purple
+  },
+  amoled: {
+    Duty: { bg: "#9f1239", text: "#ffe4e6" }, // Bold heavy dark velvet red
+    Pre: { bg: "#1f2937", text: "#f3f4f6" }, // Soft dark carbon
+    Ord: { bg: "#1f2937", text: "#f3f4f6" }, // Soft dark carbon
+    Off: { bg: "#312e81", text: "#e0e7ff" }, // Soothing deep midnight indigo
+    Rest: { bg: "#064e3b", text: "#d1fae5" }, // Joyful deep emerald
+    Anes: { bg: "#451a03", text: "#fef3c7" }, // Warm deep bronze rotation
+  },
 };
 
 function getContrastColor(hexcolor: string): string {
@@ -165,29 +161,50 @@ function getContrastColor(hexcolor: string): string {
   const r = parseInt(cleanHex.substring(0, 2), 16);
   const g = parseInt(cleanHex.substring(2, 4), 16);
   const b = parseInt(cleanHex.substring(4, 6), 16);
-  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return yiq >= 128 ? '#1e293b' : '#ffffff';
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 128 ? "#1e293b" : "#ffffff";
 }
 
 const HO_SHORT_LABELS: Record<string, string> = {
-  'Duty': 'Duty',
-  'Pre': 'Pre-D',
-  'Ord': 'Ord',
-  'Off': 'NOF',
-  'Rest': 'DOF',
-  'Anes': 'ANA'
+  Duty: "Duty",
+  Pre: "Pre-D",
+  Ord: "Ord",
+  Off: "NOF",
+  Rest: "DOF",
+  Anes: "ANA",
 };
 
 export default function App() {
   const {
-    userRole, userGroup, setUserRole, setUserGroup,
-    currentTab, setCurrentTab,
-    theme, setTheme,
-    lang, setLang,
-    isDarkMode, setIsDarkMode
+    userRole,
+    userGroup,
+    setUserRole,
+    setUserGroup,
+    currentTab,
+    setCurrentTab,
+    theme,
+    setTheme,
+    lang,
+    setLang,
+    isDarkMode,
+    setIsDarkMode,
+    appTheme,
+    setAppTheme,
   } = useStore();
 
   const [dateOffset, setDateOffset] = useState<number>(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
   const [logoTapCount, setLogoTapCount] = useState<number>(0);
   const logoTapTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -197,7 +214,6 @@ export default function App() {
   const [adminAuthModalOpen, setAdminAuthModalOpen] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [installModalOpen, setInstallModalOpen] = useState(false);
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<"presets" | "custom">("presets");
@@ -205,10 +221,12 @@ export default function App() {
   const [customColorPicker, setCustomColorPicker] = useState<string>("#ffe4e6");
 
   // Collapsible cards state
-  const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({
+  const [expandedCards, setExpandedCards] = useState<{
+    [key: string]: boolean;
+  }>({
     "ho-super": false,
-    "as": false,
-    "med": false
+    as: false,
+    med: false,
   });
 
   // PWA install prompt trigger
@@ -222,7 +240,8 @@ export default function App() {
       setShowInstallBtn(true);
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () =>
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
 
   // Sync custom color picker state when role changes
@@ -232,7 +251,10 @@ export default function App() {
     }
   }, [selectedCustomRole, theme]);
 
-
+  // Apply theme on mount
+  useEffect(() => {
+    if (appTheme) setAppTheme(appTheme);
+  }, [appTheme, setAppTheme]);
 
   // Compute selected Date
   const activeDate = useMemo(() => {
@@ -244,11 +266,11 @@ export default function App() {
   }, [dateOffset]);
 
   const activeDateFormatted = useMemo(() => {
-    return activeDate.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
+    return activeDate.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
     });
   }, [activeDate]);
 
@@ -256,15 +278,15 @@ export default function App() {
     if (dateOffset === 0) return "Today";
     if (dateOffset === 1) return "Tomorrow";
     if (dateOffset === -1) return "Yesterday";
-    return `${Math.abs(dateOffset)} Days ${dateOffset > 0 ? 'Ahead' : 'Ago'}`;
+    return `${Math.abs(dateOffset)} Days ${dateOffset > 0 ? "Ahead" : "Ago"}`;
   }, [dateOffset]);
 
   const mNum = activeDate.getMonth() + 1;
   const dNum = activeDate.getDate();
-  const dateStr = `2026-${String(mNum).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+  const dateStr = `2026-${String(mNum).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
 
   const rosterDay = useMemo(() => {
-    return masterRoster.find(r => r.month === mNum && r.d === dNum);
+    return masterRoster.find((r) => r.month === mNum && r.d === dNum);
   }, [masterRoster, mNum, dNum]);
 
   const tomorrowRosterDay = useMemo(() => {
@@ -272,27 +294,27 @@ export default function App() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tmNum = tomorrow.getMonth() + 1;
     const tdNum = tomorrow.getDate();
-    return masterRoster.find(r => r.month === tmNum && r.d === tdNum);
+    return masterRoster.find((r) => r.month === tmNum && r.d === tdNum);
   }, [masterRoster, activeDate]);
 
   const dailyData: DailyInfo | undefined = DATA.dailyInfo[dateStr];
 
   // Calculate shift type for active role/group
   const currentShiftType = useMemo(() => {
-    if (!rosterDay || userRole === 'Others' || !userGroup) return 'Off';
-    if (userRole === 'HO') {
-      return rosterDay.roles[userGroup] || 'Off';
+    if (!rosterDay || userRole === "Others" || !userGroup) return "Off";
+    if (userRole === "HO") {
+      return rosterDay.roles[userGroup] || "Off";
     }
-    return 'Off';
+    return "Off";
   }, [rosterDay, userRole, userGroup]);
 
-  const currentThemeColor = theme[currentShiftType] || theme['Off'];
+  const currentThemeColor = theme[currentShiftType] || theme["Off"];
 
   // Handle Logo Tap to Unlock Admin
   const handleLogoTap = () => {
     if (userRole !== "HO" || userGroup !== "B") return;
 
-    setLogoTapCount(prev => {
+    setLogoTapCount((prev) => {
       const newCount = prev + 1;
       if (logoTapTimeout.current) clearTimeout(logoTapTimeout.current);
 
@@ -310,7 +332,13 @@ export default function App() {
   };
 
   const handleAdminAuthSubmit = () => {
-    if (adminPasswordInput === "OG2026") {
+    if (userGroup !== "B") {
+      alert("❌ Admin access is restricted to Group B members only.");
+      setAdminAuthModalOpen(false);
+      setAdminPasswordInput("");
+      return;
+    }
+    if (adminPasswordInput === "YAWNAKA") {
       setIsAdminUnlocked(true);
       setCurrentTab("admin");
       setAdminAuthModalOpen(false);
@@ -351,9 +379,9 @@ export default function App() {
   };
 
   const toggleCard = (cardId: string) => {
-    setExpandedCards(prev => ({
+    setExpandedCards((prev) => ({
       ...prev,
-      [cardId]: !prev[cardId]
+      [cardId]: !prev[cardId],
     }));
   };
 
@@ -369,8 +397,8 @@ export default function App() {
       ...theme,
       [selectedCustomRole]: {
         bg: customColorPicker,
-        text: getContrastColor(customColorPicker)
-      }
+        text: getContrastColor(customColorPicker),
+      },
     };
     setTheme(newTheme);
     localStorage.setItem("rosterTheme", JSON.stringify(newTheme));
@@ -379,17 +407,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-28 font-sans">
-      
       {/* 1. ONBOARDING OVERLAY */}
       <AnimatePresence>
         {(!userRole || (userRole === "HO" && !userGroup)) && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-slate-900/95 z-50 flex items-center justify-center p-4 md:p-6 backdrop-blur-md"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
@@ -401,37 +428,58 @@ export default function App() {
 
               {!userRole ? (
                 <div>
-                  <h2 className="text-2xl font-black text-slate-800 mb-2">Welcome to NPT OG Hub</h2>
-                  <p className="text-slate-500 font-medium mb-6 text-sm">Obstetrics & Gynaecology clinical ward organizer. Select your role to get started.</p>
-                  
+                  <h2 className="text-2xl font-black text-slate-800 mb-2">
+                    {lang === "en"
+                      ? "Welcome to NOGSH Portal 2026"
+                      : "NOGSH Portal 2026 မှ ကြိုဆိုပါတယ်"}
+                  </h2>
+                  <p className="text-slate-500 font-medium mb-6 text-sm">
+                    Obstetrics & Gynaecology clinical ward organizer. Select
+                    your role to get started.
+                  </p>
+
                   <div className="flex flex-col gap-3">
-                    <button 
-                      onClick={() => handleSetRole("HO")} 
+                    <button
+                      onClick={() => handleSetRole("HO")}
                       className="group py-4 px-5 border-2 border-slate-100 rounded-2xl font-bold text-slate-700 hover:border-pink-500 hover:bg-pink-50/50 transition duration-300 flex items-center justify-between"
                     >
                       <span>⚕️ House Officer (HO)</span>
-                      <span className="text-xs text-slate-400 group-hover:text-pink-500 transition">Select &rarr;</span>
+                      <span className="text-xs text-slate-400 group-hover:text-pink-500 transition">
+                        Select &rarr;
+                      </span>
                     </button>
-                    <button 
-                      onClick={() => handleSetRole("Others")} 
+                    <button
+                      onClick={() => handleSetRole("Others")}
                       className="group py-4 px-5 border-2 border-slate-100 rounded-2xl font-bold text-slate-700 hover:border-indigo-500 hover:bg-indigo-50/50 transition duration-300 flex items-center justify-between"
                     >
                       <span>👤 Others</span>
-                      <span className="text-xs text-slate-400 group-hover:text-indigo-500 transition">Select &rarr;</span>
+                      <span className="text-xs text-slate-400 group-hover:text-indigo-500 transition">
+                        Select &rarr;
+                      </span>
                     </button>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <h2 className="text-2xl font-black text-slate-800 mb-2">Select Your Group</h2>
-                  <p className="text-slate-500 font-medium mb-6 text-sm">Which roster group are you assigned to?</p>
-                  
+                  <h2 className="text-2xl font-black text-slate-800 mb-2">
+                    Select Your Group
+                  </h2>
+                  <p className="text-slate-500 font-medium text-sm">
+                    Which roster group are you assigned to?
+                  </p>
+                  <p className="text-rose-500 font-bold mb-6 text-xs bg-rose-50 p-2 rounded-lg mt-2">
+                    ⚠️ Warning: You cannot change this group later. Please
+                    select your correct assigned group!
+                  </p>
+
                   <div className="grid grid-cols-2 gap-3">
-                    {["A", "B", "C", "D"].map(g => {
-                      const registeredHOGroup = localStorage.getItem("registeredHOGroup");
-                      if (registeredHOGroup && registeredHOGroup !== g) return null;
+                    {["A", "B", "C", "D"].map((g) => {
+                      const registeredHOGroup =
+                        localStorage.getItem("registeredHOGroup");
+                      if (registeredHOGroup && registeredHOGroup !== g)
+                        return null;
                       return (
-                        <button 
+                        <button
                           key={g}
                           onClick={() => handleSetGroup(g)}
                           className="py-4 border-2 border-slate-100 rounded-xl font-extrabold text-lg text-slate-700 hover:border-pink-500 hover:bg-pink-50/50 transition duration-300"
@@ -442,7 +490,7 @@ export default function App() {
                     })}
                   </div>
 
-                  <button 
+                  <button
                     onClick={() => {
                       setUserRole(null);
                       localStorage.removeItem("userRole");
@@ -460,22 +508,35 @@ export default function App() {
 
       {/* 2. MAIN APP CONTAINER */}
       <div className="max-w-2xl mx-auto w-full pt-6 px-4 md:px-6">
-        
         {/* Header */}
         <header className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
-            <div 
+            <div
               onClick={handleLogoTap}
               className={`w-11 h-11 rounded-full flex items-center justify-center cursor-pointer transition shadow-sm border border-pink-100 select-none ${
-                logoTapCount > 0 ? "bg-pink-100 text-pink-600 animate-pulse scale-95" : "bg-pink-50 text-pink-500 hover:bg-pink-100"
+                logoTapCount > 0
+                  ? "bg-pink-100 text-pink-600 animate-pulse scale-95"
+                  : "bg-pink-50 text-pink-500 hover:bg-pink-100"
               }`}
               title="Tap 5 times for Admin statistics comparison"
             >
-              <Heart className={`h-6 w-6 ${logoTapCount > 0 ? "fill-pink-500" : ""}`} />
+              <Heart
+                className={`h-6 w-6 ${logoTapCount > 0 ? "fill-pink-500" : ""}`}
+              />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-none">NPT OG Hub</h1>
+                <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-none flex items-center gap-2">
+                  NOGSH Portal 2026
+                  <div className="flex items-center gap-1 ml-1.5 bg-slate-100/70 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full border border-slate-200/50 dark:border-slate-700/50">
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"}`}
+                    />
+                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                      {isOnline ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                </h1>
                 {isAdminUnlocked && (
                   <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 uppercase tracking-wide">
                     <Unlock className="h-2 w-2" /> Admin
@@ -483,26 +544,23 @@ export default function App() {
                 )}
               </div>
               <p className="inline-block mt-1 text-[10px] font-bold uppercase tracking-widest bg-slate-200/80 text-slate-600 px-2.5 py-0.5 rounded-full">
-                {userRole === "Others" ? "Others / Guest Mode" : `${userRole} • Group ${userGroup}`}
+                {userRole === "Others"
+                  ? "Others / Guest Mode"
+                  : `${userRole} • Group ${userGroup}`}
               </p>
             </div>
           </div>
 
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={() => setInstallModalOpen(true)}
               className="h-10 px-3 rounded-full bg-indigo-50 border border-indigo-100 flex items-center gap-1.5 text-indigo-600 hover:bg-indigo-100 shadow-sm transition font-black text-[10px] uppercase tracking-wider"
-              title="Install App"
+              title={
+                lang === "en" ? "Install App" : "App ကို သွင်းရန် (Install)"
+              }
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Install App</span>
-            </button>
-            <button 
-              onClick={() => setSettingsModalOpen(true)}
-              className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-50 shadow-sm transition"
-              title="Settings"
-            >
-              <Settings className="h-5 w-5" />
             </button>
           </div>
         </header>
@@ -511,45 +569,77 @@ export default function App() {
         <div className="mb-6">
           <AnimatePresence mode="wait">
             {currentTab === "dashboard" && (
-              <motion.div 
+              <motion.div
                 key="dashboard"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-5"
               >
-                {userRole === "HO" && userGroup && tomorrowRosterDay && (tomorrowRosterDay.roles[userGroup] === 'Duty' || tomorrowRosterDay.roles[userGroup] === 'Pre' || tomorrowRosterDay.roles[userGroup] === 'Anes') && dateOffset === 0 && (
-                  <div className={`p-4 rounded-2xl shadow-sm border ${tomorrowRosterDay.roles[userGroup] === 'Duty' ? 'bg-rose-50/80 border-rose-100' : 'bg-amber-50/80 border-amber-100'} flex items-start gap-3`}>
-                    <div className={`p-2 rounded-xl ${tomorrowRosterDay.roles[userGroup] === 'Duty' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'} shrink-0 mt-0.5`}>
-                      <Bell className="h-5 w-5" />
+                {userRole === "HO" &&
+                  userGroup &&
+                  tomorrowRosterDay &&
+                  (tomorrowRosterDay.roles[userGroup] === "Duty" ||
+                    tomorrowRosterDay.roles[userGroup] === "Pre" ||
+                    tomorrowRosterDay.roles[userGroup] === "Ord" ||
+                    tomorrowRosterDay.roles[userGroup] === "Anes") &&
+                  dateOffset === 0 && (
+                    <div
+                      className={`p-4 rounded-2xl shadow-sm border ${tomorrowRosterDay.roles[userGroup] === "Duty" ? "bg-rose-50/80 border-rose-100" : "bg-amber-50/80 border-amber-100"} flex items-start gap-3`}
+                    >
+                      <div
+                        className={`p-2 rounded-xl ${tomorrowRosterDay.roles[userGroup] === "Duty" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"} shrink-0 mt-0.5`}
+                      >
+                        <Bell className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4
+                          className={`font-black text-sm mb-0.5 ${tomorrowRosterDay.roles[userGroup] === "Duty" ? "text-rose-900" : "text-amber-900"}`}
+                        >
+                          Reminder:{" "}
+                          {tomorrowRosterDay.roles[userGroup] === "Duty"
+                            ? "Duty"
+                            : tomorrowRosterDay.roles[userGroup] === "Anes"
+                              ? "ANA"
+                              : "Ordinary/Pre-Duty"}{" "}
+                          Tomorrow!
+                        </h4>
+                        <p
+                          className={`text-xs font-medium ${tomorrowRosterDay.roles[userGroup] === "Duty" ? "text-rose-700/80" : "text-amber-700/80"}`}
+                        >
+                          Get some rest tonight. You are scheduled for Group{" "}
+                          {userGroup}{" "}
+                          {tomorrowRosterDay.roles[userGroup] === "Duty"
+                            ? "Duty"
+                            : tomorrowRosterDay.roles[userGroup] === "Anes"
+                              ? "ANA"
+                              : "Ordinary/Pre-Duty"}{" "}
+                          tomorrow.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className={`font-black text-sm mb-0.5 ${tomorrowRosterDay.roles[userGroup] === 'Duty' ? 'text-rose-900' : 'text-amber-900'}`}>
-                        Reminder: {tomorrowRosterDay.roles[userGroup] === 'Duty' ? 'Duty' : tomorrowRosterDay.roles[userGroup] === 'Anes' ? 'ANA' : 'Pre-Duty'} Tomorrow!
-                      </h4>
-                      <p className={`text-xs font-medium ${tomorrowRosterDay.roles[userGroup] === 'Duty' ? 'text-rose-700/80' : 'text-amber-700/80'}`}>
-                        Get some rest tonight. You are scheduled for Group {userGroup} {tomorrowRosterDay.roles[userGroup] === 'Duty' ? 'Duty' : tomorrowRosterDay.roles[userGroup] === 'Anes' ? 'ANA' : 'Pre-Duty'} tomorrow.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
+                  )}
+
                 {/* Date Selection Bar */}
                 <div className="flex justify-between items-center bg-white p-2.5 rounded-2xl shadow-sm border border-slate-100">
-                  <button 
-                    onClick={() => setDateOffset(prev => prev - 1)}
+                  <button
+                    onClick={() => setDateOffset((prev) => prev - 1)}
                     className="p-2 font-bold text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition duration-200"
                   >
                     <ArrowLeft className="h-5 w-5" />
                   </button>
-                  
+
                   <div className="text-center">
-                    <span className="block font-black text-lg text-slate-800 tracking-tight">{activeDateLabel}</span>
-                    <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mt-0.5">{activeDateFormatted}</span>
+                    <span className="block font-black text-lg text-slate-800 tracking-tight">
+                      {activeDateLabel}
+                    </span>
+                    <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mt-0.5">
+                      {activeDateFormatted}
+                    </span>
                   </div>
 
-                  <button 
-                    onClick={() => setDateOffset(prev => prev + 1)}
+                  <button
+                    onClick={() => setDateOffset((prev) => prev + 1)}
                     className="p-2 font-bold text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition duration-200"
                   >
                     <ArrowRight className="h-5 w-5" />
@@ -557,258 +647,494 @@ export default function App() {
                 </div>
 
                 {/* DYNAMIC SHIFT CARD */}
-                <div 
-                  style={{ backgroundColor: currentThemeColor.bg, color: currentThemeColor.text }}
+                <div
+                  style={{
+                    backgroundColor: currentThemeColor.bg,
+                    color: currentThemeColor.text,
+                  }}
                   className="rounded-[2.25rem] p-6 shadow-md transition-colors duration-300 border border-black/5"
                 >
-                    <div className="flex justify-between items-start mb-5">
-                      <div>
-                        <p className="font-bold uppercase tracking-widest text-[10px] opacity-80">Your Shift Status</p>
-                        <h2 className="text-4xl md:text-5xl font-black tracking-tight mt-1">{LABELS[currentShiftType] || currentShiftType}</h2>
+                  <div className="flex justify-between items-start mb-5">
+                    <div>
+                      <p className="font-bold uppercase tracking-widest text-[10px] opacity-80">
+                        Your Shift Status
+                      </p>
+                      <h2 className="text-4xl md:text-5xl font-black tracking-tight mt-1">
+                        {LABELS[currentShiftType] || currentShiftType}
+                      </h2>
+                    </div>
+                    <div className="bg-white/25 backdrop-blur-sm px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                      {userRole} GROUP {userGroup}
+                    </div>
+                  </div>
+
+                  {/* SUPER CARD: HO Group Tracker */}
+                  <div
+                    onClick={() => toggleCard("ho-super")}
+                    className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] mb-4 cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
+                  >
+                    <div className="p-4 flex justify-between items-center">
+                      <div className="flex-grow">
+                        <p className="font-bold uppercase tracking-widest text-[9px] opacity-70 mb-1.5">
+                          House Surgeon Groups Overview
+                        </p>
+                        <div className="grid grid-cols-4 gap-1 text-[9px] sm:text-[10px] font-black w-full pr-2">
+                          {["A", "B", "C", "D"].map((g) => {
+                            const r = rosterDay ? rosterDay.roles[g] : "Off";
+                            return (
+                              <span
+                                key={g}
+                                className="px-1.5 py-1 rounded bg-black/15 border border-white/5 flex justify-center items-center gap-1"
+                              >
+                                <span className="opacity-60">{g}:</span>
+                                <span
+                                  style={{ color: theme[r]?.bg }}
+                                  className="font-extrabold truncate"
+                                >
+                                  {HO_SHORT_LABELS[r] || r}
+                                </span>
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="bg-white/25 backdrop-blur-sm px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
-                        {userRole} GROUP {userGroup}
+                      <div className="pl-2">
+                        {expandedCards["ho-super"] ? (
+                          <ChevronUp className="h-5 w-5 opacity-60" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5 opacity-60" />
+                        )}
                       </div>
                     </div>
 
-                    {/* SUPER CARD: HO Group Tracker */}
-                    <div 
-                      onClick={() => toggleCard("ho-super")}
-                      className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] mb-4 cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
-                    >
-                      <div className="p-4 flex justify-between items-center">
-                        <div className="flex-grow">
-                          <p className="font-bold uppercase tracking-widest text-[9px] opacity-70 mb-1.5">House Surgeon Groups Overview</p>
-                          <div className="flex flex-wrap gap-2.5 text-xs font-black">
-                            {['A', 'B', 'C', 'D'].map(g => {
-                              const r = rosterDay ? rosterDay.roles[g] : 'Off';
-                              return (
-                                <span key={g} className="px-2 py-0.5 rounded bg-black/15 border border-white/5 flex items-center gap-1">
-                                  <span className="opacity-60">{g}:</span> 
-                                  <span style={{ color: theme[r]?.bg }} className="font-extrabold">
-                                    {HO_SHORT_LABELS[r] || r}
-                                  </span>
-                                </span>
-                              );
-                            })}
+                    {/* HO detailed collapse drawer */}
+                    <AnimatePresence>
+                      {expandedCards["ho-super"] && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="bg-black/20 border-t border-white/5 px-3 py-3 text-white"
+                        >
+                          <div className="grid grid-cols-2 gap-2">
+                            {["Duty", "Pre", "Ord", "Off", "Anes", "Rest"].map(
+                              (role) => {
+                                const groups = ["A", "B", "C", "D"].filter(
+                                  (g) => rosterDay?.roles[g] === role,
+                                );
+                                if (groups.length === 0) return null;
+                                return (
+                                  <div
+                                    key={role}
+                                    className="bg-black/25 rounded-xl p-2.5 border border-white/5"
+                                  >
+                                    <p
+                                      className="font-bold uppercase tracking-wider text-[9px] mb-1.5 border-b border-white/10 pb-1"
+                                      style={{ color: theme[role]?.bg }}
+                                    >
+                                      {LABELS[role] || role} Team
+                                    </p>
+                                    <div className="space-y-2">
+                                      {groups.map((g) => (
+                                        <div key={g}>
+                                          <div className="text-[9px] font-black uppercase opacity-75 mb-0.5">
+                                            Group {g}
+                                          </div>
+                                          <div className="space-y-1">
+                                            {(DATA.ho_directory[g] || []).map(
+                                              (doc: Contact) => (
+                                                <div
+                                                  key={doc.name}
+                                                  className="flex flex-col text-[10px]"
+                                                >
+                                                  <span className="font-semibold truncate">
+                                                    ⚕️{" "}
+                                                    {translateName(
+                                                      doc.name,
+                                                      lang,
+                                                    )}
+                                                  </span>
+                                                </div>
+                                              ),
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              },
+                            )}
                           </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Seniors Grids (1 + 2 + 2 style layout) */}
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
+                        <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">
+                          Consultant (SCS)
+                        </p>
+                        <p className="font-extrabold text-xs sm:text-sm leading-tight">
+                          {dailyData?.SCS !== "-"
+                            ? translateName(dailyData?.SCS || "", lang)
+                            : "N/A"}
+                        </p>
+                      </div>
+                      <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
+                        <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">
+                          Junior Cons. (JCS)
+                        </p>
+                        <p className="font-extrabold text-xs sm:text-sm leading-tight">
+                          {dailyData?.JCS !== "-"
+                            ? translateName(dailyData?.JCS || "", lang)
+                            : "N/A"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">
+                        Senior Assistant Surgeon (SAS)
+                      </p>
+                      <p className="font-extrabold text-sm leading-tight">
+                        {dailyData?.SAS !== "-"
+                          ? translateName(dailyData?.SAS || "", lang)
+                          : "N/A"}
+                      </p>
+                    </div>
+
+                    {dailyData?.PG && (
+                      <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
+                        <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">
+                          Postgraduate (PG 2)
+                        </p>
+                        <p className="font-extrabold text-sm leading-tight">
+                          {translateName(dailyData.PG, lang)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* AS Team & Ward Round Super Card */}
+                    <div
+                      onClick={() => toggleCard("as")}
+                      className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
+                    >
+                      <div className="p-3.5 flex justify-between items-center">
+                        <div className="flex-1 pr-2">
+                          <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">
+                            AS Team & Ward Round
+                          </p>
+                          <p className="font-extrabold text-xs sm:text-sm leading-tight break-words">
+                            {dailyData ? (
+                              <>
+                                Gp {dailyData.AS_Group.replace("Group ", "")} (
+                                {(
+                                  DATA.as_directory[
+                                    dailyData.AS_Group.replace("Group ", "")
+                                  ] || []
+                                )
+                                  .map(
+                                    (doc: Contact) =>
+                                      "Dr. " + getInitials(doc.name),
+                                  )
+                                  .join(" & ")}
+                                )
+                              </>
+                            ) : (
+                              "N/A"
+                            )}
+                          </p>
                         </div>
-                        <div className="pl-2">
-                          {expandedCards["ho-super"] ? <ChevronUp className="h-5 w-5 opacity-60" /> : <ChevronDown className="h-5 w-5 opacity-60" />}
+                        <div>
+                          {expandedCards["as"] ? (
+                            <ChevronUp className="h-4 w-4 opacity-60 shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 opacity-60 shrink-0" />
+                          )}
                         </div>
                       </div>
 
-                      {/* HO detailed collapse drawer */}
                       <AnimatePresence>
-                        {expandedCards["ho-super"] && (
-                          <motion.div 
+                        {expandedCards["as"] && (
+                          <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="bg-black/20 border-t border-white/5 px-4 py-4 space-y-3.5 text-white"
+                            className="px-3.5 pb-4 pt-1 border-t border-white/5 text-xs text-white/90 leading-relaxed space-y-3.5 bg-black/10"
                           >
-                            {['Duty', 'Pre', 'Ord', 'Off', 'Anes', 'Rest'].map(role => {
-                              const groups = ['A', 'B', 'C', 'D'].filter(g => rosterDay?.roles[g] === role);
-                              if (groups.length === 0) return null;
-                              return (
-                                <div key={role} className="bg-black/25 rounded-xl p-3 border border-white/5">
-                                  <p 
-                                    className="font-bold uppercase tracking-wider text-[10px] mb-2 border-b border-white/10 pb-1"
-                                    style={{ color: theme[role]?.bg }}
-                                  >
-                                    {LABELS[role] || role} Team
-                                  </p>
-                                  <div className="space-y-3">
-                                    {groups.map(g => (
-                                      <div key={g}>
-                                        <div className="text-[10px] font-black uppercase opacity-75">Group {g}</div>
-                                        <div className="space-y-1.5 mt-1">
-                                          {(DATA.ho_directory[g] || []).map((doc: Contact) => (
-                                            <div key={doc.name} className="flex justify-between items-center text-xs">
-                                              <span className="font-semibold">⚕️ {translateName(doc.name, lang)}</span>
-                                              <a 
-                                                href={`tel:${doc.phone}`} 
-                                                className="bg-white/15 hover:bg-white/25 px-2 py-0.5 rounded text-[10px] font-bold tracking-wider transition flex items-center gap-1"
-                                                onClick={(e) => e.stopPropagation()}
-                                              >
-                                                <Phone className="h-2.5 w-2.5" /> {doc.phone}
-                                              </a>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
+                            <div>
+                              <span className="font-bold uppercase tracking-wider text-[9px] opacity-60 block mb-1.5">
+                                Duty AS Team
+                              </span>
+                              <div className="space-y-2">
+                                {dailyData ? (
+                                  (
+                                    DATA.as_directory[
+                                      dailyData.AS_Group.replace("Group ", "")
+                                    ] || []
+                                  ).map((doc: Contact) => (
+                                    <div
+                                      key={doc.name}
+                                      className="flex flex-col text-[10px]"
+                                    >
+                                      <span className="font-semibold">
+                                        ⚕️ AS {translateName(doc.name, lang)}
+                                      </span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <span className="opacity-60">
+                                    No surgeon scheduled
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {dailyData?.WR && (
+                              <div className="pt-2 border-t border-white/5">
+                                <span className="font-bold uppercase tracking-wider text-[9px] opacity-60 block mb-1">
+                                  Ward Round assignments
+                                </span>
+                                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                                  <div className="bg-black/15 p-2 rounded-lg border border-white/5">
+                                    <span className="block text-[8px] uppercase tracking-widest opacity-60">
+                                      Post-Op Ward
+                                    </span>
+                                    <span className="font-extrabold text-white text-xs">
+                                      {dailyData.WR.postop}
+                                    </span>
+                                  </div>
+                                  <div className="bg-black/15 p-2 rounded-lg border border-white/5">
+                                    <span className="block text-[8px] uppercase tracking-widest opacity-60">
+                                      PN Ward
+                                    </span>
+                                    <span className="font-extrabold text-white text-xs">
+                                      {dailyData.WR.pn}
+                                    </span>
                                   </div>
                                 </div>
-                              );
-                            })}
+                              </div>
+                            )}
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
 
-                    {/* Seniors Grids (1 + 2 + 2 style layout) */}
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
-                          <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">Consultant (SCS)</p>
-                          <p className="font-extrabold text-xs sm:text-sm leading-tight">
-                            {dailyData?.SCS !== "-" ? translateName(dailyData?.SCS || "", lang) : "N/A"}
+                    {/* Med OnCall Card */}
+                    <div
+                      onClick={() => toggleCard("med")}
+                      className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
+                    >
+                      <div className="p-3.5 flex justify-between items-center">
+                        <div>
+                          <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">
+                            NPTGH Medical OnCall
+                          </p>
+                          <p className="font-extrabold text-sm leading-tight">
+                            {dailyData?.Med_name
+                              ? translateName(dailyData.Med_name, lang)
+                              : "N/A"}
                           </p>
                         </div>
-                        <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
-                          <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">Junior Cons. (JCS)</p>
-                          <p className="font-extrabold text-xs sm:text-sm leading-tight">
-                            {dailyData?.JCS !== "-" ? translateName(dailyData?.JCS || "", lang) : "N/A"}
-                          </p>
+                        <div>
+                          {expandedCards["med"] ? (
+                            <ChevronUp className="h-4 w-4 opacity-60" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 opacity-60" />
+                          )}
                         </div>
                       </div>
 
-                      <div className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] p-3.5">
-                        <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">Senior Assistant Surgeon (SAS)</p>
-                        <p className="font-extrabold text-sm leading-tight">
-                          {dailyData?.SAS !== "-" ? translateName(dailyData?.SAS || "", lang) : "N/A"}
-                        </p>
-                      </div>
-
-                      {/* AS Team & Ward Round Super Card */}
-                      <div 
-                        onClick={() => toggleCard("as")}
-                        className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
-                      >
-                        <div className="p-3.5 flex justify-between items-center">
-                          <div>
-                            <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">AS Team & Ward Round</p>
-                            <p className="font-extrabold text-sm leading-tight">
-                              {dailyData ? `Duty Team: Gp ${dailyData.AS_Group.replace("Group ", "")}` : "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            {expandedCards["as"] ? <ChevronUp className="h-4 w-4 opacity-60" /> : <ChevronDown className="h-4 w-4 opacity-60" />}
-                          </div>
-                        </div>
-
-                        <AnimatePresence>
-                          {expandedCards["as"] && (
-                            <motion.div 
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="px-3.5 pb-4 pt-1 border-t border-white/5 text-xs text-white/90 leading-relaxed space-y-3.5 bg-black/10"
-                            >
-                              <div>
-                                <span className="font-bold uppercase tracking-wider text-[9px] opacity-60 block mb-1.5">Duty Surgeons</span>
-                                <div className="space-y-2">
-                                  {dailyData ? (
-                                    (DATA.as_directory[dailyData.AS_Group.replace("Group ", "")] || []).map((doc: Contact) => (
-                                      <div key={doc.name} className="flex justify-between items-center">
-                                        <span className="font-semibold">⚕️ AS {translateName(doc.name, lang)}</span>
-                                        <a 
-                                          href={`tel:${doc.phone}`} 
-                                          className="bg-white/15 hover:bg-white/25 px-2 py-0.5 rounded font-bold tracking-wider transition flex items-center gap-1 text-[10px]"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <Phone className="h-2.5 w-2.5" /> {doc.phone}
-                                        </a>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <span className="opacity-60">No surgeon scheduled</span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {dailyData?.WR && (
-                                <div className="pt-2 border-t border-white/5">
-                                  <span className="font-bold uppercase tracking-wider text-[9px] opacity-60 block mb-1">Ward Round assignments</span>
-                                  <div className="grid grid-cols-2 gap-2 mt-1.5">
-                                    <div className="bg-black/15 p-2 rounded-lg border border-white/5">
-                                      <span className="block text-[8px] uppercase tracking-widest opacity-60">Post-Op Ward</span>
-                                      <span className="font-extrabold text-white text-xs">{dailyData.WR.postop}</span>
-                                    </div>
-                                    <div className="bg-black/15 p-2 rounded-lg border border-white/5">
-                                      <span className="block text-[8px] uppercase tracking-widest opacity-60">PN Ward</span>
-                                      <span className="font-extrabold text-white text-xs">{dailyData.WR.pn}</span>
-                                    </div>
-                                  </div>
-                                </div>
+                      <AnimatePresence>
+                        {expandedCards["med"] && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="px-3.5 pb-4 pt-2 border-t border-white/5 text-xs text-white/90 bg-black/10"
+                          >
+                            <span className="font-bold uppercase tracking-wider text-[9px] opacity-60 block mb-2">
+                              Direct Contacts
+                            </span>
+                            <div className="flex flex-col gap-1.5">
+                              {dailyData?.Med_phone ? (
+                                dailyData.Med_phone.split("/").map((p, idx) => {
+                                  const cleanPhone = p
+                                    .trim()
+                                    .replace(/[^0-9]/g, "");
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={`tel:${cleanPhone}`}
+                                      className="inline-flex items-center justify-center bg-white/15 hover:bg-white/25 px-3 py-2 rounded-xl font-bold tracking-wider transition text-center gap-1.5 w-full"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Phone className="h-3 w-3" /> {p.trim()}
+                                    </a>
+                                  );
+                                })
+                              ) : (
+                                <span className="opacity-60 text-xs">
+                                  No direct contacts provided
+                                </span>
                               )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
-                      {/* Med OnCall Card */}
-                      <div 
-                        onClick={() => toggleCard("med")}
-                        className="bg-black/10 backdrop-blur-sm rounded-2xl border border-white/10 dark:border-white/40 dark:shadow-[0_0_10px_rgba(255,255,255,0.05)] cursor-pointer hover:bg-black/15 transition-all duration-300 dark:hover:scale-[1.02] overflow-hidden"
-                      >
-                        <div className="p-3.5 flex justify-between items-center">
-                          <div>
-                            <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 mb-1">NPTGH Medical OnCall</p>
-                            <p className="font-extrabold text-sm leading-tight">
-                              {dailyData?.Med_name ? translateName(dailyData.Med_name, lang) : "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            {expandedCards["med"] ? <ChevronUp className="h-4 w-4 opacity-60" /> : <ChevronDown className="h-4 w-4 opacity-60" />}
-                          </div>
-                        </div>
-
-                        <AnimatePresence>
-                          {expandedCards["med"] && (
-                            <motion.div 
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="px-3.5 pb-4 pt-2 border-t border-white/5 text-xs text-white/90 bg-black/10"
-                            >
-                              <span className="font-bold uppercase tracking-wider text-[9px] opacity-60 block mb-2">Direct Contacts</span>
-                              <div className="flex flex-col gap-1.5">
-                                {dailyData?.Med_phone ? (
-                                  dailyData.Med_phone.split("/").map((p, idx) => {
-                                    const cleanPhone = p.trim().replace(/[^0-9]/g, "");
-                                    return (
-                                      <a 
-                                        key={idx}
-                                        href={`tel:${cleanPhone}`} 
-                                        className="inline-flex items-center justify-center bg-white/15 hover:bg-white/25 px-3 py-2 rounded-xl font-bold tracking-wider transition text-center gap-1.5 w-full"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <Phone className="h-3 w-3" /> {p.trim()}
-                                      </a>
-                                    );
-                                  })
-                                ) : (
-                                  <span className="opacity-60 text-xs">No direct contacts provided</span>
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
-
-                    <NotesWidget />
+                </div>
               </motion.div>
             )}
 
             {currentTab === "calendar" && (
-              <motion.div 
+              <motion.div
                 key="calendar"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-5"
               >
-                <CalendarMatrix />
+                <CalendarMatrix
+                  onOpenThemeModal={() => setIsColorModalOpen(true)}
+                />
+                <p className="text-center text-[10px] text-slate-400 mt-2 font-medium px-4">
+                  {lang === "en"
+                    ? "Note: August and September rosters are algorithmic projections based on July's official roster."
+                    : "မှတ်ချက်။ ။ ဩဂုတ်နှင့် စက်တင်ဘာလ တာဝန်ချိန်များသည် ဇူလိုင်လ၏ တရားဝင်တာဝန်ချိန်ဇယားအပေါ် အခြေခံ၍ တွက်ချက်ထားခြင်းသာ ဖြစ်ပါသည်။"}
+                </p>
               </motion.div>
             )}
 
+            {currentTab === "notes" && (
+              <motion.div
+                key="notes"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                  <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-4">
+                    <NotebookPen className="h-6 w-6 text-indigo-500" />{" "}
+                    {lang === "en" ? "My Notes" : "မှတ်စုများ"}
+                  </h3>
+                  <NotesWidget activeDateStr={dateStr} />
+                  <p className="text-center text-[10px] text-slate-400 mt-4 font-medium flex items-center justify-center gap-1">
+                    <Lock className="h-3 w-3" />{" "}
+                    {lang === "en"
+                      ? "All notes are stored locally on your device. Privacy guaranteed."
+                      : "မှတ်စုများကို သင့်ဖုန်းထဲတွင်သာ သိမ်းဆည်းထားမည်ဖြစ်ပြီး လုံခြုံမှုအပြည့်အဝရှိပါသည်။"}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {currentTab === "settings" && (
+              <motion.div
+                key="settings"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-4 pb-12"
+              >
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-6">
+                  <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-4">
+                    <Settings className="h-6 w-6 text-slate-500" /> Settings
+                  </h3>
+
+                  <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex flex-col gap-3">
+                    <div className="flex items-center gap-3 font-black text-slate-700">
+                      <Languages className="h-5 w-5 text-indigo-500" /> Choose
+                      Language
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setLang("en")}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${lang === "en" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        English
+                      </button>
+                      <button
+                        onClick={() => setLang("mm")}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${lang === "mm" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        မြန်မာ (Myanmar)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex flex-col gap-3">
+                    <div className="flex items-center gap-3 font-black text-slate-700">
+                      <Moon className="h-5 w-5 text-indigo-500" /> Appearance
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setAppTheme?.("light")}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "light" || !appTheme ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        <Sun className="h-4 w-4 inline-block mr-1" /> Light
+                      </button>
+                      <button
+                        onClick={() => setAppTheme?.("dark")}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "dark" ? "bg-slate-700 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        <Moon className="h-4 w-4 inline-block mr-1" /> Dark
+                      </button>
+                      <button
+                        onClick={() => setAppTheme?.("amoled")}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "amoled" ? "bg-black text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        <Moon className="h-4 w-4 inline-block mr-1" /> AMOLED
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setInstallModalOpen(true)}
+                    className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
+                  >
+                    <Smartphone className="h-5 w-5 text-emerald-500" /> Install
+                    App
+                  </button>
+                  {userGroup === "B" && (
+                    <button
+                      onClick={() => setAdminAuthModalOpen(true)}
+                      className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
+                    >
+                      <Lock className="h-5 w-5 text-amber-500" /> "Admin Access"
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setAboutModalOpen(true)}
+                    className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
+                  >
+                    <Info className="h-5 w-5 text-amber-500" /> About App
+                  </button>
+                  <button
+                    onClick={() => setAppTutorialOpen(true)}
+                    className="w-full p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
+                  >
+                    <HelpCircle className="h-5 w-5 text-purple-500" /> App
+                    Tutorial
+                  </button>
+                  <button
+                    onClick={() => resetOnboarding()}
+                    className="w-full p-4 rounded-2xl border border-slate-100 hover:border-red-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-red-50/50 transition flex items-center gap-3 text-red-600"
+                  >
+                    <LogOut className="h-5 w-5 text-red-500" /> Change Role /
+                    Logout
+                  </button>
+                </div>
+              </motion.div>
+            )}
             {currentTab === "directory" && (
-              <motion.div 
+              <motion.div
                 key="directory"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -819,473 +1145,560 @@ export default function App() {
               </motion.div>
             )}
 
-                {currentTab === "admin" && isAdminUnlocked && (
-              <motion.div 
+            {currentTab === "admin" && isAdminUnlocked && (
+              <motion.div
                 key="admin"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <AdminAudit onLockDatabase={() => { setIsAdminUnlocked(false); setCurrentTab("dashboard"); }} />
+                <AdminAudit
+                  activeDateStr={dateStr}
+                  onLockDatabase={() => {
+                    setIsAdminUnlocked(false);
+                    setCurrentTab("dashboard");
+                  }}
+                />
               </motion.div>
             )}
-
-                </AnimatePresence>
+          </AnimatePresence>
         </div>
 
-      {/* 5. DYNAMIC PRESET COLOR MODAL */}
-      <AnimatePresence>
-        {isColorModalOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100"
+        {/* 5. DYNAMIC PRESET COLOR MODAL */}
+        <AnimatePresence>
+          {isColorModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             >
-              <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="text-md font-black text-slate-800 uppercase tracking-wide">Color Customizer</h3>
-                <button 
-                  onClick={() => setIsColorModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200/50 rounded-lg transition"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Modal Tabs */}
-              <div className="flex border-b border-slate-100 bg-slate-50/50">
-                <button 
-                  onClick={() => setModalTab("presets")} 
-                  className={`flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition duration-200 ${
-                    modalTab === "presets" 
-                      ? "text-indigo-600 border-indigo-600 bg-white" 
-                      : "text-slate-400 border-transparent hover:bg-slate-100/50"
-                  }`}
-                >
-                  Theme Presets
-                </button>
-                <button 
-                  onClick={() => setModalTab("custom")} 
-                  className={`flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition duration-200 ${
-                    modalTab === "custom" 
-                      ? "text-indigo-600 border-indigo-600 bg-white" 
-                      : "text-slate-400 border-transparent hover:bg-slate-100/50"
-                  }`}
-                >
-                  Custom Pickers
-                </button>
-              </div>
-
-              {modalTab === "presets" ? (
-                <div className="p-4 flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
-                  {Object.keys(COLOR_PRESETS).map(presetKey => {
-                    const PRESET_LABELS: Record<string, string> = {
-                      pastel: "🌸 Pastel Gentle",
-                      vibrant: "🩺 Vibrant Clinical",
-                      ocean: "🌊 Deep Ocean",
-                      monochrome: "🐼 Slate Monochrome",
-                      sunset: "🌅 Sunset Glow",
-                      forest: "🌲 Forest Canopy",
-                      lavender: "💜 Lavender Dream",
-                      midnight: "🌃 Midnight Blue",
-                      cherry: "🍒 Cherry Blossom",
-                      amber: "🍯 Amber Warmth",
-                      emerald: "💎 Emerald Shine",
-                      ruby: "🛑 Ruby Crimson"
-                    };
-                    return (
-                      <button 
-                        key={presetKey}
-                        onClick={() => handleApplyPreset(presetKey as keyof typeof COLOR_PRESETS)} 
-                        className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex justify-between items-center"
-                      >
-                        <span>{PRESET_LABELS[presetKey] || presetKey}</span>
-                        <span className="flex gap-1">
-                          {Object.values(COLOR_PRESETS[presetKey as keyof typeof COLOR_PRESETS]).slice(0, 4).map((c, i) => (
-                            <span key={i} className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: c.bg }} />
-                          ))}
-                        </span>
-                      </button>
-                    );
-                  })}
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100"
+              >
+                <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <h3 className="text-md font-black text-slate-800 uppercase tracking-wide">
+                    Color Customizer
+                  </h3>
+                  <button
+                    onClick={() => setIsColorModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200/50 rounded-lg transition"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-              ) : (
-                <div className="p-6 flex flex-col gap-5">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Select Shift / Duty Role</label>
-                    <select 
-                      value={selectedCustomRole}
-                      onChange={(e) => setSelectedCustomRole(e.target.value)}
-                      className="w-full p-3.5 rounded-xl border border-slate-200 font-extrabold text-sm text-slate-700 bg-white"
-                    >
-                      {Object.keys(LABELS).map(roleKey => (
-                        <option key={roleKey} value={roleKey}>{LABELS[roleKey]}</option>
-                      ))}
-                    </select>
-                  </div>
 
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Choose Custom Color</label>
-                    <div className="flex items-center gap-4">
-                      <input 
-                        type="color" 
-                        value={customColorPicker}
-                        onChange={(e) => setCustomColorPicker(e.target.value)}
-                        className="w-14 h-14 rounded-xl cursor-pointer border border-slate-200 p-0"
-                      />
-                      <div 
-                        style={{ backgroundColor: customColorPicker, color: getContrastColor(customColorPicker) }}
-                        className="flex-grow h-14 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
+                {/* Modal Tabs */}
+                <div className="flex border-b border-slate-100 bg-slate-50/50">
+                  <button
+                    onClick={() => setModalTab("presets")}
+                    className={`flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition duration-200 ${
+                      modalTab === "presets"
+                        ? "text-indigo-600 border-indigo-600 bg-white"
+                        : "text-slate-400 border-transparent hover:bg-slate-100/50"
+                    }`}
+                  >
+                    Theme Presets
+                  </button>
+                  <button
+                    onClick={() => setModalTab("custom")}
+                    className={`flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition duration-200 ${
+                      modalTab === "custom"
+                        ? "text-indigo-600 border-indigo-600 bg-white"
+                        : "text-slate-400 border-transparent hover:bg-slate-100/50"
+                    }`}
+                  >
+                    Custom Pickers
+                  </button>
+                </div>
+
+                {modalTab === "presets" ? (
+                  <div className="p-4 flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
+                    {Object.keys(COLOR_PRESETS).map((presetKey) => {
+                      const PRESET_LABELS: Record<string, string> = {
+                        pastel: "🌸 Pastel Gentle (Female)",
+                        blossom: "🌸 Cherry Blossom (Female)",
+                        lavender: "💜 Lavender Dream (Female)",
+                        peach: "🍑 Peach Coral (Female)",
+                        orchid: "🌺 Orchid Bloom (Female)",
+                        berry: "🍓 Very Berry (Female)",
+                        steel: "⚓ Steel Ocean (Male)",
+                        forest: "🌲 Forest Canopy (Male)",
+                        charcoal: "🕶️ Charcoal Amber (Male)",
+                        amoled: "🌌 True Black (AMOLED)",
+                      };
+                      return (
+                        <button
+                          key={presetKey}
+                          onClick={() =>
+                            handleApplyPreset(
+                              presetKey as keyof typeof COLOR_PRESETS,
+                            )
+                          }
+                          className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex justify-between items-center"
+                        >
+                          <span>{PRESET_LABELS[presetKey] || presetKey}</span>
+                          <span className="flex gap-1">
+                            {Object.values(
+                              COLOR_PRESETS[
+                                presetKey as keyof typeof COLOR_PRESETS
+                              ],
+                            )
+                              .slice(0, 4)
+                              .map((c, i) => (
+                                <span
+                                  key={i}
+                                  className="w-3.5 h-3.5 rounded-full"
+                                  style={{ backgroundColor: c.bg }}
+                                />
+                              ))}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-6 flex flex-col gap-5">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                        Select Shift / Duty Role
+                      </label>
+                      <select
+                        value={selectedCustomRole}
+                        onChange={(e) => setSelectedCustomRole(e.target.value)}
+                        className="w-full p-3.5 rounded-xl border border-slate-200 font-extrabold text-sm text-slate-700 bg-white"
                       >
-                        {LABELS[selectedCustomRole]} Preview
+                        {Object.keys(LABELS).map((roleKey) => (
+                          <option key={roleKey} value={roleKey}>
+                            {LABELS[roleKey]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                        Choose Custom Color
+                      </label>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="color"
+                          value={customColorPicker}
+                          onChange={(e) => setCustomColorPicker(e.target.value)}
+                          className="w-14 h-14 rounded-xl cursor-pointer border border-slate-200 p-0"
+                        />
+                        <div
+                          style={{
+                            backgroundColor: customColorPicker,
+                            color: getContrastColor(customColorPicker),
+                          }}
+                          className="flex-grow h-14 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
+                        >
+                          {LABELS[selectedCustomRole]} Preview
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <button 
-                    onClick={handleApplyCustomColor}
-                    className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-indigo-700 transition shadow-md mt-2"
+                    <button
+                      onClick={handleApplyCustomColor}
+                      className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-indigo-700 transition shadow-md mt-2"
+                    >
+                      Apply Custom Color
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* INSTALL MODAL */}
+        <AnimatePresence>
+          {installModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border border-slate-100"
+              >
+                <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <h3 className="text-md font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <Download className="h-5 w-5 text-indigo-500" />{" "}
+                    {lang === "en"
+                      ? "Install App"
+                      : "App ကို သွင်းရန် (Install)"}
+                  </h3>
+                  <button
+                    onClick={() => setInstallModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200/50 rounded-lg transition"
                   >
-                    Apply Custom Color
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* SETTINGS MODAL */}
-      <AnimatePresence>
-        {settingsModalOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border border-slate-100"
-            >
-              <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="text-md font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-slate-500" /> Settings
-                </h3>
-                <button 
-                  onClick={() => setSettingsModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200/50 rounded-lg transition"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="p-6 flex flex-col gap-3">
-                <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex flex-col gap-3">
-                  <div className="flex items-center gap-3 font-black text-slate-700">
-                    <Languages className="h-5 w-5 text-indigo-500" /> Choose Language
+                <div className="p-6 space-y-4">
+                  <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4">
+                    <h4 className="font-black text-slate-800 text-sm mb-2 flex items-center gap-2">
+                      📱 iOS / iPhone
+                    </h4>
+                    <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
+                      <li>
+                        Open this site in <strong>Safari</strong>
+                      </li>
+                      <li>
+                        Tap the <strong>Share</strong> button{" "}
+                        <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
+                          ⍐
+                        </span>
+                      </li>
+                      <li>
+                        Scroll down and tap{" "}
+                        <strong>"Add to Home Screen"</strong>{" "}
+                        <span className="inline-block border border-slate-300 rounded px-1 ml-1 text-[10px]">
+                          +
+                        </span>
+                      </li>
+                    </ol>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => {
-                        setLang("en");
-                        setSettingsModalOpen(false);
-                      }}
-                      className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${lang === "en" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
-                    >
-                      English
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setLang("mm");
-                        setSettingsModalOpen(false);
-                      }}
-                      className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${lang === "mm" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
-                    >
-                      မြန်မာ (Myanmar)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex items-center justify-between">
-                  <div className="flex items-center gap-3 font-black text-slate-700">
-                    {isDarkMode ? <Moon className="h-5 w-5 text-indigo-400" /> : <Sun className="h-5 w-5 text-amber-500" />}
-                    Dark Mode
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4">
+                    <h4 className="font-black text-slate-800 text-sm mb-2 flex items-center gap-2">
+                      🤖 Android
+                    </h4>
+                    <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside font-medium leading-relaxed">
+                      <li>
+                        Open this site in <strong>Chrome</strong>
+                      </li>
+                      <li>
+                        Tap the <strong>Menu</strong> icon (three dots)
+                      </li>
+                      <li>
+                        Tap <strong>"Add to Home screen"</strong> or{" "}
+                        <strong>"Install app"</strong>
+                      </li>
+                    </ol>
                   </div>
                   <button
-                    onClick={() => setIsDarkMode(!isDarkMode)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDarkMode ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                    onClick={() => setInstallModalOpen(false)}
+                    className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-200 transition"
                   >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`}
-                    />
+                    Got it
                   </button>
                 </div>
-
-                <button 
-                  onClick={() => {
-                    setIsColorModalOpen(true);
-                    setSettingsModalOpen(false);
-                  }}
-                  className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
-                >
-                  <Palette className="h-5 w-5 text-pink-500" /> Themes
-                </button>
-                {showInstallBtn && (
-                  <button 
-                    onClick={async () => {
-                      if (!deferredPrompt) return;
-                      deferredPrompt.prompt();
-                      const { outcome } = await deferredPrompt.userChoice;
-                      if (outcome === "accepted") {
-                        setShowInstallBtn(false);
-                      }
-                      setDeferredPrompt(null);
-                      setSettingsModalOpen(false);
-                    }}
-                    className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
-                  >
-                    <Smartphone className="h-5 w-5 text-emerald-500" /> Install App
-                  </button>
-                )}
-                <button 
-                  onClick={() => {
-                    window.location.reload();
-                  }}
-                  className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
-                >
-                  <Download className="h-5 w-5 text-blue-500" /> Check for Updates
-                </button>
-                <button 
-                  onClick={() => {
-                    setAboutModalOpen(true);
-                    setSettingsModalOpen(false);
-                  }}
-                  className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
-                >
-                  <Info className="h-5 w-5 text-amber-500" /> About App
-                </button>
-                <button 
-                  onClick={() => {
-                    setAppTutorialOpen(true);
-                    setSettingsModalOpen(false);
-                  }}
-                  className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-indigo-50/20 transition flex items-center gap-3"
-                >
-                  <HelpCircle className="h-5 w-5 text-purple-500" /> App Tutorial
-                </button>
-                <button 
-                  onClick={() => {
-                    resetOnboarding();
-                    setSettingsModalOpen(false);
-                  }}
-                  className="p-4 rounded-2xl border border-slate-100 hover:border-red-400 text-left font-black text-slate-700 bg-slate-50 hover:bg-red-50/50 transition flex items-center gap-3 text-red-600"
-                >
-                  <LogOut className="h-5 w-5 text-red-500" /> Change Role / Logout
-                </button>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* APP TUTORIAL MODAL */}
-      <AnimatePresence>
-        {appTutorialOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border border-slate-100 max-h-[80vh]"
+        {/* APP TUTORIAL MODAL */}
+        <AnimatePresence>
+          {appTutorialOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             >
-              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                <h3 className="text-md font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                  <HelpCircle className="h-5 w-5 text-purple-500" /> App Tutorial
-                </h3>
-                <button 
-                  onClick={() => setAppTutorialOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200/50 rounded-lg transition"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto space-y-6">
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
-                    <Languages className="h-4 w-4 text-indigo-500" /> Language / ဘာသာစကား
-                  </h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    You can toggle the app language between English and Myanmar using the Settings menu. Most names in the directory and roster will be translated.
-                    <br/><br/>
-                    ဆက်တင်များမှတစ်ဆင့် အင်္ဂလိပ် သို့မဟုတ် မြန်မာ ဘာသာစကားကို ပြောင်းလဲနိုင်သည်။ အမည်အများစုကို ဘာသာပြန်ပေးပါမည်။
-                  </p>
-                </div>
-                
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-pink-500" /> Themes / အပြင်အဆင်
-                  </h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Select a custom theme from Settings to match your preference. Each theme assigns distinct colors to duty roles to easily differentiate them on the calendar.
-                    <br/><br/>
-                    ပြက္ခဒိန်တွင် တာဝန်ချိန်အလိုက် အရောင်များဖြင့် ခွဲခြားသိမြင်နိုင်ရန် မိမိနှစ်သက်ရာ Theme ကို ပြောင်းလဲအသုံးပြုနိုင်ပါသည်။
-                  </p>
-                </div>
-                
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
-                    <Smartphone className="h-4 w-4 text-emerald-500" /> Offline Install / ဖုန်းတွင်သွင်းရန်
-                  </h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Tap "Install App" in the Settings menu to save the app to your home screen for offline access without an internet connection.
-                    <br/><br/>
-                    အင်တာနက်မလိုဘဲ အသုံးပြုနိုင်ရန် "Install App" ကိုနှိပ်၍ ဖုန်း၏ Home Screen တွင် ထည့်သွင်းထားနိုင်ပါသည်။
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 5. ABOUT MODAL */}
-      <AnimatePresence>
-        {aboutModalOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center border border-slate-100"
-            >
-              <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Info className="h-8 w-8" />
-              </div>
-              <h3 className="text-xl font-black text-slate-800 mb-2">NPT OG Hub</h3>
-              <p className="text-slate-500 font-medium text-sm mb-6 leading-relaxed">
-                App developed by <strong>Yawnaka Rajah</strong> with ❤️<br/>
-                Tailored exactly to O&G July-September Q3 ward duties.<br/>
-                Offline support enabled.
-              </p>
-              <button 
-                onClick={() => setAboutModalOpen(false)}
-                className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition"
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border border-slate-100 max-h-[80vh]"
               >
-                Close
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                  <h3 className="text-md font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <HelpCircle className="h-5 w-5 text-purple-500" /> App
+                    Tutorial
+                  </h3>
+                  <button
+                    onClick={() => setAppTutorialOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200/50 rounded-lg transition"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto space-y-6">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
+                      <Languages className="h-4 w-4 text-indigo-500" /> Language
+                      / ဘာသာစကား
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {lang === "en"
+                        ? "You can toggle the app language between English and Myanmar using the Settings menu. Most names in the directory and roster will be translated."
+                        : "Settingsမှတစ်ဆင့် အင်္ဂလိပ် သို့မဟုတ် မြန်မာ ဘာသာစကားကို ပြောင်းလဲနိုင်သည်။ အမည်အများစုကို ဘာသာပြန်ပေးပါမည်။"}
+                    </p>
+                  </div>
 
-      {/* 6. ADMIN AUTH MODAL */}
-      <AnimatePresence>
-        {adminAuthModalOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 border border-slate-100"
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-pink-500" /> Themes &
+                      AMOLED / အပြင်အဆင်
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {lang === "en"
+                        ? "Select a custom theme from Settings to match your preference. You can switch between Light, Dark, and a true black AMOLED theme for battery saving."
+                        : "မိမိနှစ်သက်ရာ Theme ကို ပြောင်းလဲအသုံးပြုနိုင်ပါသည်။ Light, Dark အပြင် ဘက်ထရီသက်သာစေရန် အမည်းရောင် AMOLED theme လည်း ရွေးချယ်နိုင်ပါသည်။"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
+                      <Smartphone className="h-4 w-4 text-emerald-500" />{" "}
+                      Offline Support & Install / ဖုန်းတွင်သွင်းရန်
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {lang === "en"
+                        ? 'Tap "Install App" to install it. If not available as popup, use your browser\'s "Add to Home Screen". An indicator next to the title shows if you are Online or Offline. The app works fully offline!'
+                        : 'ဖုန်းတွင်ထည့်သွင်းရန် "Install App" သို့မဟုတ် Browser မှ "Add to Home Screen" ကိုအသုံးပြုနိုင်ပါသည်။ Online/Offline အခြေအနေကို ခေါင်းစဉ်နံဘေးတွင် ကြည့်ရှုနိုင်ပြီး အင်တာနက်မရှိလည်း အသုံးပြုနိုင်ပါသည်။'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-amber-500" /> Screenshot /
+                      ဓာတ်ပုံရိုက်ရန်
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {lang === "en"
+                        ? "You can save your duty calendar as an image directly to your phone by tapping the Camera icon in the Calendar tab."
+                        : "ပြက္ခဒိန်တွင် Camera icon ကိုနှိပ်၍ တာဝန်ချိန်ဇယားကို ဓာတ်ပုံအဖြစ် သိမ်းဆည်းနိုင်ပါသည်။"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
+                      <CalendarClock className="h-4 w-4 text-rose-500" />{" "}
+                      Privacy & Notes / လုံခြုံရေး နှင့် မှတ်စုများ
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {lang === "en"
+                        ? "Tap on any day in the calendar to add a note. All notes and preferences are saved locally on your device for absolute privacy."
+                        : "ပြက္ခဒိန်တွင် ရက်စွဲကိုနှိပ်၍ မှတ်စုများ ရေးမှတ်နိုင်ပါသည်။ မှတ်စုများအားလုံးကို သင့်ဖုန်းတွင်သာ သိမ်းဆည်းထားမည်ဖြစ်၍ လုံခြုံမှုအပြည့်အဝရှိပါသည်။"}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 5. ABOUT MODAL */}
+        <AnimatePresence>
+          {aboutModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             >
-              <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center justify-center gap-2">
-                <Lock className="h-5 w-5 text-amber-500" /> Admin Access
-              </h3>
-              <input 
-                type="password"
-                value={adminPasswordInput}
-                onChange={(e) => setAdminPasswordInput(e.target.value)}
-                placeholder="Enter access code..."
-                className="w-full p-3 rounded-xl border border-slate-200 mb-4 font-bold text-center outline-none focus:border-amber-400"
-              />
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setAdminAuthModalOpen(false)}
-                  className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition"
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center border border-slate-100"
+              >
+                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Info className="h-8 w-8" />
+                </div>
+                <h3 className="text-xl font-black text-slate-800 mb-2">
+                  NOGSH Portal 2026
+                </h3>
+                <div className="text-slate-600 font-medium text-sm mb-6 leading-relaxed text-left space-y-4">
+                  <div className="text-center">
+                    <p className="font-bold text-slate-800">Version 1.0.0</p>
+                  </div>
+                  <div>
+                    <p>
+                      <strong>Developed by:</strong> Yawnaka Rajah
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                    <p className="mb-2">
+                      For any issues, feedback, or suggestions, reach me on
+                      Telegram:
+                    </p>
+                    <a
+                      href="https://t.me/yawnakarajah"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-indigo-600 font-bold hover:underline flex items-center gap-1"
+                    >
+                      @yawnakarajah
+                    </a>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800 mb-1">
+                      About this App
+                    </p>
+                    <p className="text-xs">
+                      A comprehensive clinical ward organizer specifically
+                      tailored for Q3 duties (July - September). It features an
+                      intelligent roster calendar, a secure local notes system,
+                      and offline capabilities to ensure seamless access to
+                      critical scheduling data during active ward rounds.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAboutModalOpen(false)}
+                  className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition"
                 >
-                  Cancel
+                  Close
                 </button>
-                <button 
-                  onClick={handleAdminAuthSubmit}
-                  className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition shadow-md"
-                >
-                  Unlock
-                </button>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-            {/* 7. BOTTOM NAVIGATION BAR */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] z-40 pb-safe">
-        <div className="max-w-2xl mx-auto flex justify-around">
-          <button 
-            onClick={() => {
-              setCurrentTab("dashboard");
-              setIsAdminUnlocked(false);
-            }} 
-            className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${
-              currentTab === "dashboard" ? "text-indigo-600 font-black" : "text-slate-400 hover:text-slate-600"
-            }`}
-          >
-            <Activity className="h-5 w-5" />
-            <span className="text-[9px] font-bold uppercase tracking-widest">Today</span>
-          </button>
+        {/* 6. ADMIN AUTH MODAL */}
+        <AnimatePresence>
+          {adminAuthModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 border border-slate-100"
+              >
+                <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center justify-center gap-2">
+                  <Lock className="h-5 w-5 text-amber-500" /> "Admin Access"
+                </h3>
+                <input
+                  type="password"
+                  value={adminPasswordInput}
+                  onChange={(e) => setAdminPasswordInput(e.target.value)}
+                  placeholder={
+                    lang === "en"
+                      ? "Enter access code..."
+                      : "ကုဒ်နံပါတ် ထည့်ပါ..."
+                  }
+                  className="w-full p-3 rounded-xl border border-slate-200 mb-4 font-bold text-center outline-none focus:border-amber-400"
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setAdminAuthModalOpen(false)}
+                    className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAdminAuthSubmit}
+                    className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition shadow-md"
+                  >
+                    Unlock
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          <button 
-            onClick={() => {
-              setCurrentTab("calendar");
-              setIsAdminUnlocked(false);
-            }} 
-            className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${
-              currentTab === "calendar" ? "text-indigo-600 font-black" : "text-slate-400 hover:text-slate-600"
-            }`}
-          >
-            <CalendarIcon className="h-5 w-5" />
-            <span className="text-[9px] font-bold uppercase tracking-widest">Roster</span>
-          </button>
+        {/* 7. BOTTOM NAVIGATION BAR */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] z-40 pb-safe px-2">
+          <div className="max-w-2xl mx-auto flex justify-between items-end pb-2 pt-2">
+            <button
+              onClick={() => {
+                setCurrentTab("calendar");
+                setIsAdminUnlocked(false);
+              }}
+              className={`flex-1 flex flex-col items-center gap-1 transition-colors ${
+                currentTab === "calendar"
+                  ? "text-indigo-600 font-black"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <CalendarIcon className="h-5 w-5" />
+              <span className="text-[9px] font-bold uppercase tracking-widest">
+                Roster
+              </span>
+            </button>
 
-          <button 
-            onClick={() => {
-              setCurrentTab("directory");
-              setIsAdminUnlocked(false);
-            }} 
-            className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${
-              currentTab === "directory" ? "text-indigo-600 font-black" : "text-slate-400 hover:text-slate-600"
-            }`}
-          >
-            <Users className="h-5 w-5" />
-            <span className="text-[9px] font-bold uppercase tracking-widest">Directory</span>
-          </button>
-        </div>
-      </nav>
-    </div>
+            <button
+              onClick={() => {
+                setCurrentTab("directory");
+                setIsAdminUnlocked(false);
+              }}
+              className={`flex-1 flex flex-col items-center gap-1 transition-colors ${
+                currentTab === "directory"
+                  ? "text-indigo-600 font-black"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <Users className="h-5 w-5" />
+              <span className="text-[9px] font-bold uppercase tracking-widest">
+                Directory
+              </span>
+            </button>
 
+            <div className="relative flex-1 flex justify-center h-full">
+              <button
+                onClick={() => {
+                  setCurrentTab("dashboard");
+                  setIsAdminUnlocked(false);
+                }}
+                className={`absolute bottom-0 flex flex-col items-center justify-center w-14 h-14 rounded-full shadow-lg border-4 border-white transition-transform transform hover:scale-105 ${
+                  currentTab === "dashboard"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-indigo-500 text-white"
+                }`}
+              >
+                <Activity className="h-6 w-6 mb-0.5" />
+                <span className="text-[8px] font-black uppercase tracking-widest">
+                  Today
+                </span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setCurrentTab("notes");
+                setIsAdminUnlocked(false);
+              }}
+              className={`flex-1 flex flex-col items-center gap-1 transition-colors ${
+                currentTab === "notes"
+                  ? "text-indigo-600 font-black"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <NotebookPen className="h-5 w-5" />
+              <span className="text-[9px] font-bold uppercase tracking-widest">
+                Notes
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setCurrentTab("settings");
+                setIsAdminUnlocked(false);
+              }}
+              className={`flex-1 flex flex-col items-center gap-1 transition-colors ${
+                currentTab === "settings"
+                  ? "text-indigo-600 font-black"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <Settings className="h-5 w-5" />
+              <span className="text-[9px] font-bold uppercase tracking-widest">
+                Settings
+              </span>
+            </button>
+          </div>
+        </nav>
+      </div>
     </div>
   );
 }

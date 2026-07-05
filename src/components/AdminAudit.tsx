@@ -1,41 +1,58 @@
-import React, { useMemo } from 'react';
-import { Lock, ClipboardList } from 'lucide-react';
-import { useStore } from '../store/useStore';
-import { masterRoster } from '../utils/roster';
+import React, { useMemo } from "react";
+import { Lock, ClipboardList, Activity } from "lucide-react";
+import { useStore } from "../store/useStore";
+import { masterRoster } from "../utils/roster";
 
-export function AdminAudit({ onLockDatabase }: { onLockDatabase: () => void }) {
+export function AdminAudit({
+  onLockDatabase,
+  activeDateStr,
+}: {
+  onLockDatabase: () => void;
+  activeDateStr: string;
+}) {
   const { theme, userGroup, userRole } = useStore();
 
-  const adminStats = useMemo(() => {
+  const groupStats = useMemo(() => {
     const stats = {
-      A: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0, total: 0 },
-      B: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0, total: 0 },
-      C: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0, total: 0 },
-      D: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0, total: 0 }
+      A: {
+        total: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+        remaining: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+      },
+      B: {
+        total: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+        remaining: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+      },
+      C: {
+        total: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+        remaining: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+      },
+      D: {
+        total: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+        remaining: { Duty: 0, Off: 0, Pre: 0, Ord: 0, Rest: 0, Anes: 0 },
+      },
     };
 
-    const monthStats: { [month: number]: typeof stats } = {
-      7: { A: { ...stats.A }, B: { ...stats.B }, C: { ...stats.C }, D: { ...stats.D } },
-      8: { A: { ...stats.A }, B: { ...stats.B }, C: { ...stats.C }, D: { ...stats.D } },
-      9: { A: { ...stats.A }, B: { ...stats.B }, C: { ...stats.C }, D: { ...stats.D } }
-    };
+    masterRoster.forEach((day) => {
+      const isFuture = day.dateStr >= activeDateStr;
 
-    masterRoster.forEach(day => {
-      ['A', 'B', 'C', 'D'].forEach(g => {
-        const r = day.roles[g] as keyof typeof stats.A;
-        if (stats[g as keyof typeof stats] && r in stats[g as keyof typeof stats]) {
-          stats[g as keyof typeof stats][r]++;
-          stats[g as keyof typeof stats].total++;
-        }
-        if (monthStats[day.month] && monthStats[day.month][g as keyof typeof stats] && r in monthStats[day.month][g as keyof typeof stats]) {
-          monthStats[day.month][g as keyof typeof stats][r]++;
-          monthStats[day.month][g as keyof typeof stats].total++;
+      ["A", "B", "C", "D"].forEach((g) => {
+        const r = day.roles[g] as keyof typeof stats.A.total;
+        if (
+          stats[g as keyof typeof stats] &&
+          r in stats[g as keyof typeof stats].total
+        ) {
+          stats[g as keyof typeof stats].total[r]++;
+          if (isFuture) {
+            stats[g as keyof typeof stats].remaining[r]++;
+          }
         }
       });
     });
 
-    return { grand: stats, monthly: monthStats };
-  }, []);
+    return stats;
+  }, [activeDateStr]);
+
+  const groups = ["A", "B", "C", "D"] as const;
 
   return (
     <div className="space-y-6">
@@ -48,94 +65,67 @@ export function AdminAudit({ onLockDatabase }: { onLockDatabase: () => void }) {
             92-Day Duty Balance & Fairness Auditing
           </p>
         </div>
-        <button 
-          onClick={onLockDatabase} 
-          className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-xs transition"
+        <button
+          onClick={onLockDatabase}
+          className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-xs transition shadow-sm"
         >
           Lock Database
         </button>
       </div>
 
-      <div className="bg-white p-5 rounded-[1.75rem] shadow-sm border border-slate-100">
-        <h3 className="text-sm font-black text-slate-800 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-          <ClipboardList className="h-4 w-4 text-pink-500" /> Q3 Grand Total Breakdowns (92 Days)
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[400px]">
-            <thead>
-              <tr className="border-b border-slate-100 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                <th className="py-2.5">Group</th>
-                <th className="py-2.5 text-center">Duty</th>
-                <th className="py-2.5 text-center">Off</th>
-                <th className="py-2.5 text-center">Pre</th>
-                <th className="py-2.5 text-center">Ord</th>
-                <th className="py-2.5 text-center">Rest</th>
-                <th className="py-2.5 text-center">ANA</th>
-                <th className="py-2.5 text-center">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {["A", "B", "C", "D"].map(g => {
-                const s = adminStats.grand[g as keyof typeof adminStats.grand];
-                return (
-                  <tr key={g} className={`text-xs ${g === userGroup && userRole === "HO" ? "bg-pink-50/40 font-black" : ""}`}>
-                    <td className="py-3 font-bold text-slate-700">Group {g}</td>
-                    <td className="py-3 text-center font-extrabold" style={{ color: theme.Duty?.bg }}>{s.Duty}</td>
-                    <td className="py-3 text-center font-extrabold" style={{ color: theme.Off?.bg }}>{s.Off}</td>
-                    <td className="py-3 text-center font-extrabold" style={{ color: theme.Pre?.bg }}>{s.Pre}</td>
-                    <td className="py-3 text-center font-extrabold" style={{ color: theme.Ord?.bg }}>{s.Ord}</td>
-                    <td className="py-3 text-center font-extrabold" style={{ color: theme.Rest?.bg }}>{s.Rest}</td>
-                    <td className="py-3 text-center font-extrabold" style={{ color: theme.Anes?.bg }}>{s.Anes}</td>
-                    <td className="py-3 text-center font-bold text-slate-500">{s.total}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {groups.map((g) => {
+          const s = groupStats[g];
+          const isUserGroup = g === userGroup && userRole === "HO";
+          return (
+            <div
+              key={g}
+              className={`bg-white p-5 rounded-[1.75rem] shadow-sm border ${isUserGroup ? "border-pink-200 bg-pink-50/10" : "border-slate-100"}`}
+            >
+              <h3
+                className={`text-sm font-black mb-3 uppercase tracking-wider flex items-center gap-1.5 ${isUserGroup ? "text-pink-600" : "text-slate-800"}`}
+              >
+                <Activity
+                  className={`h-4 w-4 ${isUserGroup ? "text-pink-500" : "text-indigo-500"}`}
+                />
+                Group {g} {isUserGroup && "(You)"}
+              </h3>
 
-      {/* Monthly Breakdowns */}
-      {[7, 8, 9].map(m => (
-        <div key={m} className="bg-white p-5 rounded-[1.75rem] shadow-sm border border-slate-100">
-          <h3 className="text-sm font-black text-slate-800 mb-3 uppercase tracking-wider">
-            {m === 7 ? "July" : m === 8 ? "August" : "September"} 2026 Summary
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[400px]">
-              <thead>
-                <tr className="border-b border-slate-100 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                  <th className="py-2.5">Group</th>
-                  <th className="py-2.5 text-center">Duty</th>
-                  <th className="py-2.5 text-center">Off</th>
-                  <th className="py-2.5 text-center">Pre</th>
-                  <th className="py-2.5 text-center">Ord</th>
-                  <th className="py-2.5 text-center">Rest</th>
-                  <th className="py-2.5 text-center">ANA</th>
-                  <th className="py-2.5 text-center">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {["A", "B", "C", "D"].map(g => {
-                  const s = adminStats.monthly[m][g as keyof typeof adminStats.grand];
-                  return (
-                    <tr key={g} className={`text-xs ${g === userGroup && userRole === "HO" ? "bg-pink-50/40 font-black" : ""}`}>
-                      <td className="py-3 font-bold text-slate-700">Group {g}</td>
-                      <td className="py-3 text-center font-extrabold" style={{ color: theme.Duty?.bg }}>{s.Duty}</td>
-                      <td className="py-3 text-center font-extrabold" style={{ color: theme.Off?.bg }}>{s.Off}</td>
-                      <td className="py-3 text-center font-extrabold" style={{ color: theme.Pre?.bg }}>{s.Pre}</td>
-                      <td className="py-3 text-center font-extrabold" style={{ color: theme.Ord?.bg }}>{s.Ord}</td>
-                      <td className="py-3 text-center font-extrabold" style={{ color: theme.Rest?.bg }}>{s.Rest}</td>
-                      <td className="py-3 text-center font-extrabold" style={{ color: theme.Anes?.bg }}>{s.Anes}</td>
-                      <td className="py-3 text-center font-black text-slate-800">{s.total}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      <th className="py-2">Role</th>
+                      <th className="py-2 text-center">Total (92D)</th>
+                      <th className="py-2 text-center">Remaining</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {(
+                      ["Duty", "Off", "Pre", "Ord", "Rest", "Anes"] as const
+                    ).map((role) => (
+                      <tr key={role} className="text-xs">
+                        <td
+                          className="py-2.5 font-extrabold"
+                          style={{ color: theme[role]?.text }}
+                        >
+                          {role}
+                        </td>
+                        <td className="py-2.5 text-center font-bold text-slate-600">
+                          {s.total[role]}
+                        </td>
+                        <td className="py-2.5 text-center font-black text-slate-800">
+                          {s.remaining[role]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

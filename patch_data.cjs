@@ -1,0 +1,18 @@
+const fs = require('fs');
+
+const dataStr = fs.readFileSync('src/data.ts', 'utf8');
+
+const newData = {  "2026-07-01": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr HMO",      "pn": "Dr MTK"    }  },  "2026-07-02": {    "AS_Group": "Group 2",    "WR": {      "postop": "Dr NSDT",      "pn": "Dr HMMM"    }  },  "2026-07-03": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr NLO",      "pn": "Dr TKW"    }  },  "2026-07-04": {    "AS_Group": "Group 3",    "WR": null  },  "2026-07-05": {    "AS_Group": "Group 2",    "WR": null  },  "2026-07-06": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr TKW",      "pn": "Dr NLO"    }  },  "2026-07-07": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr MTK",      "pn": "Dr HMO"    }  },  "2026-07-08": {    "AS_Group": "Group 2",    "WR": {      "postop": "Dr HMMM",      "pn": "Dr NSDT"    }  },  "2026-07-09": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr NLO",      "pn": "Dr TKW"    }  },  "2026-07-10": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr HMO",      "pn": "Dr MTK"    }  },  "2026-07-11": {    "AS_Group": "Group 2",    "WR": null  },  "2026-07-12": {    "AS_Group": "Group 1",    "WR": null  },  "2026-07-13": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr MTK",      "pn": "Dr HMO"    }  },  "2026-07-14": {    "AS_Group": "Group 2",    "WR": {      "postop": "Dr NSDT",      "pn": "Dr HMMM"    }  },  "2026-07-15": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr TKW",      "pn": "Dr NLO"    }  },  "2026-07-16": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr HMO",      "pn": "Dr MTK"    }  },  "2026-07-17": {    "AS_Group": "Group 2",    "WR": {      "postop": "Dr HMMM",      "pn": "Dr NSDT"    }  },  "2026-07-18": {    "AS_Group": "Group 1",    "WR": null  },  "2026-07-19": {    "AS_Group": "Group 3",    "WR": null  },  "2026-07-20": {    "AS_Group": "Group 2",    "WR": {      "postop": "Dr NSDT",      "pn": "Dr HMMM"    }  },  "2026-07-21": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr TKW",      "pn": "Dr NLO"    }  },  "2026-07-22": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr MTK",      "pn": "Dr HMO"    }  },  "2026-07-23": {    "AS_Group": "Group 2",    "WR": {      "postop": "Dr NSDT",      "pn": "Dr HMMM"    }  },  "2026-07-24": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr NLO",      "pn": "Dr TKW"    }  },  "2026-07-25": {    "AS_Group": "Group 3",    "WR": null  },  "2026-07-26": {    "AS_Group": "Group 2",    "WR": null  },  "2026-07-27": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr TKW",      "pn": "Dr NLO"    }  },  "2026-07-28": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr HMO",      "pn": "Dr MTK"    }  },  "2026-07-29": {    "AS_Group": "Group 2",    "WR": {      "postop": "Dr NSDT",      "pn": "Dr HMMM"    }  },  "2026-07-30": {    "AS_Group": "Group 1",    "WR": {      "postop": "Dr NLO",      "pn": "Dr TKW"    }  },  "2026-07-31": {    "AS_Group": "Group 3",    "WR": {      "postop": "Dr MTK",      "pn": "Dr HMO"    }  }};
+
+let patched = dataStr;
+for (const dateStr in newData) {
+  const replacement = newData[dateStr];
+  const regexAsGroup = new RegExp(`("${dateStr}":\\s*{[^}]*AS_Group:\\s*)"Group [123]"`);
+  patched = patched.replace(regexAsGroup, `$1"${replacement.AS_Group}"`);
+  
+  const wrReplacement = replacement.WR === null ? 'null' : `{ postop: "${replacement.WR.postop}", pn: "${replacement.WR.pn}" }`;
+  const regexWr = new RegExp(`("${dateStr}":\\s*{[^}]*WR:\\s*)[^,]*(,)`);
+  patched = patched.replace(regexWr, `$1${wrReplacement}$2`);
+}
+
+fs.writeFileSync('src/data.ts', patched);

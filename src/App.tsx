@@ -23,7 +23,7 @@ import {
   Settings,
   Trash2,
   Plus,
-  BookOpen,
+  BookOpen, AlertCircle,
   FileText,
   ExternalLink,
   HelpCircle,
@@ -46,10 +46,11 @@ import { isWeekend, isHoliday } from "./utils/dateLogic";
 import { addDays } from "date-fns";
 import { CalendarMatrix } from "./components/CalendarMatrix";
 import { DirectoryTab } from "./components/DirectoryTab";
+import { ClinicalToolsTab } from "./components/ClinicalToolsTab";
 import { NotesWidget, useNotesStore } from "./components/NotesWidget";
-import { OBGYNCalculators } from "./components/OBGYNCalculators";
 import { OBGYNFacts, OBGYN_FACTS_LIST } from "./components/OBGYNFacts";
 import { AdminAudit } from "./components/AdminAudit";
+import { PostOpMonitoringCard } from "./components/PostOpMonitoringCard";
 import { OTListWidget } from "./components/OTListWidget";
 import { useStore } from "./store/useStore";
 
@@ -252,7 +253,7 @@ export default function App() {
     setAppTheme,
   } = useStore();
 
-  const { notes } = useNotesStore();
+  const { notes, addNote } = useNotesStore();
 
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
@@ -372,6 +373,26 @@ export default function App() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  // Global subtle haptic feedback for interactive elements
+  useEffect(() => {
+    const handleInteraction = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target || !target.closest) return;
+      const isInteractive =
+        target.closest("button") ||
+        target.closest("a") ||
+        target.closest('[role="button"]') ||
+        target.closest(".cursor-pointer");
+
+      if (isInteractive && typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(15); // subtle tap
+      }
+    };
+
+    document.addEventListener("pointerdown", handleInteraction, { capture: true, passive: true });
+    return () => document.removeEventListener("pointerdown", handleInteraction, { capture: true });
+  }, []);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
   const [isGroupBCalcsOpen, setIsGroupBCalcsOpen] = useState<boolean>(false);
   const [logoTapCount, setLogoTapCount] = useState<number>(0);
@@ -386,6 +407,16 @@ export default function App() {
   const [utilitySubTab, setUtilitySubTab] = useState<"facts" | "calcs" | "notes">("facts");
 
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
+  const [quickNoteText, setQuickNoteText] = useState("");
+  
+  const handleQuickAdd = () => {
+    if (quickNoteText.trim()) {
+      addNote(quickNoteText, "", "default", dateStr);
+      setQuickNoteText("");
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20);
+    }
+  };
   const [modalTab, setModalTab] = useState<"presets" | "custom">("presets");
   const [selectedCustomRole, setSelectedCustomRole] = useState<string>("Duty");
   const [customColorPicker, setCustomColorPicker] = useState<string>("#ffe4e6");
@@ -421,9 +452,18 @@ export default function App() {
     }
   }, [selectedCustomRole, theme]);
 
-  // Apply theme on mount
+  // Apply theme on mount and listen for system changes
   useEffect(() => {
     if (appTheme) setAppTheme(appTheme);
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      if (appTheme === "system") {
+        setAppTheme("system");
+      }
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
   }, [appTheme, setAppTheme]);
 
   // Compute selected Date
@@ -724,6 +764,30 @@ export default function App() {
 
           <div className="flex gap-2">
             <button
+              onClick={() => {
+                const nextTheme = appTheme === "light" ? "dark" : appTheme === "dark" ? "system" : appTheme === "system" ? "amoled" : "light";
+                setAppTheme(nextTheme);
+              }}
+              className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 shadow-sm transition"
+              title={
+                lang === "en"
+                  ? "Toggle Theme"
+                  : lang === "zh"
+                  ? "切换深色模式"
+                  : "အမှောင်/အလင်း ပြောင်းရန်"
+              }
+            >
+              {appTheme === "light" ? (
+                <Moon className="h-4.5 w-4.5" />
+              ) : appTheme === "dark" ? (
+                <Sun className="h-4.5 w-4.5" />
+              ) : appTheme === "system" ? (
+                <Sparkles className="h-4.5 w-4.5" />
+              ) : (
+                <Moon className="h-4.5 w-4.5" />
+              )}
+            </button>
+            <button
               onClick={() => setIsGlobalSearchOpen(true)}
               className="h-10 w-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 hover:bg-indigo-100 shadow-sm transition"
               title={
@@ -836,7 +900,10 @@ export default function App() {
                 </div>
 
                 {/* DYNAMIC SHIFT CARD */}
-                <div
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20, mass: 0.8 }}
                   style={{
                     backgroundColor: currentThemeColor.bg,
                     color: currentThemeColor.text,
@@ -903,6 +970,7 @@ export default function App() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
+                          transition={{ type: "spring", stiffness: 250, damping: 25 }}
                           className="bg-black/20 border-t border-white/5 px-3 py-3 text-white"
                         >
                           <div className="grid grid-cols-2 gap-2">
@@ -1053,6 +1121,7 @@ export default function App() {
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 250, damping: 25 }}
                             className="px-3.5 pb-4 pt-1 border-t border-white/5 text-xs text-white/90 leading-relaxed space-y-3.5 bg-black/10"
                           >
                             <div>
@@ -1144,6 +1213,7 @@ export default function App() {
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 250, damping: 25 }}
                             className="px-3.5 pb-4 pt-2 border-t border-white/5 text-xs text-white/90 bg-black/10"
                           >
                             <span className="font-bold uppercase tracking-wider text-[9px] opacity-60 block mb-2">
@@ -1177,10 +1247,50 @@ export default function App() {
                       </AnimatePresence>
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* OT List Section is buried under the codes for future activation when the user has the latest list and energy. */}
                 {/* <OTListWidget lang={lang} /> */}
+                <PostOpMonitoringCard />
+                <div className="mt-6 border-t border-slate-100 pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-black text-slate-800 text-lg flex items-center gap-2">
+                      <NotebookPen className="h-5 w-5 text-indigo-500" />
+                      {lang === "en" ? "Duty Notes" : lang === "zh" ? "值班笔记" : "ဂျူတီ မှတ်စုများ"}
+                    </h4>
+                    <button
+                      onClick={() => setIsNotesModalOpen(true)}
+                      className="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full transition-colors"
+                    >
+                      {lang === "en" ? "Manage Notes" : lang === "zh" ? "管理笔记" : "မှတ်စုများ စီမံရန်"}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder={lang === "en" ? "Quick Add..." : lang === "zh" ? "快速添加..." : "အမြန်ထည့်ရန်..."}
+                      value={quickNoteText}
+                      onChange={(e) => setQuickNoteText(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleQuickAdd()}
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                    <button
+                      onClick={handleQuickAdd}
+                      disabled={!quickNoteText.trim()}
+                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white p-2.5 rounded-xl transition-colors shadow-sm"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </button>
+                  </div>
+                  
+                  {/* Preview recent note */}
+                  {notes.filter(n => !n.targetDate || n.targetDate <= dateStr).slice(0, 1).map(note => (
+                    <div key={note.id} className="mt-3 bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm text-slate-600">
+                      <div className="font-bold text-slate-800 mb-1 truncate">{note.title || (lang === "en" ? "Note" : "မှတ်စု")}</div>
+                      <div className="truncate">{note.text}</div>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
 
@@ -1214,150 +1324,9 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="bg-white p-5 sm:p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                  <div className="flex flex-col border-b border-slate-100 pb-4 mb-6">
-                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                      <Wrench className="h-6 w-6 text-indigo-500 animate-pulse" />{" "}
-                      {lang === "en"
-                        ? "OBGYN Utilities"
-                        : lang === "zh"
-                          ? "妇产科工具箱"
-                          : "ဆေးဘက်ဆိုင်ရာ ကိရိယာများ"}
-                    </h3>
-                    <p className="text-xs text-slate-400 font-bold mt-1">
-                      {lang === "en"
-                        ? "Evidence-based OBGYN guidelines, clinical calculators, and memo notes"
-                        : lang === "zh"
-                          ? "循证医学指南、临床计算器与个人备忘录"
-                          : "သားဖွားမီးယပ် ညွှန်ကြားချက်များ၊ တွက်ချက်မှုများနှင့် မှတ်စုများ"}
-                    </p>
-                  </div>
-
-                  {/* 3 Buttons Side by Side with equal width just like Directory */}
-                  <div className="flex bg-slate-100/60 p-1 rounded-2xl mb-6 w-full gap-1">
-                    <button
-                      onClick={() => setUtilitySubTab("facts")}
-                      className={`flex-1 py-2 font-black text-[10px] sm:text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
-                        utilitySubTab === "facts"
-                          ? "bg-white text-indigo-700 shadow-sm"
-                          : "text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      <BookOpen className="h-4 w-4 shrink-0" />
-                      <span>
-                        {lang === "en"
-                          ? "Facts"
-                          : lang === "zh"
-                            ? "医学指南"
-                            : "လမ်းညွှန်"}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => setUtilitySubTab("calcs")}
-                      className={`flex-1 py-2 font-black text-[10px] sm:text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
-                        utilitySubTab === "calcs"
-                          ? "bg-white text-indigo-700 shadow-sm"
-                          : "text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      <Calculator className="h-4 w-4 shrink-0" />
-                      <span>
-                        {lang === "en"
-                          ? "Calculator"
-                          : lang === "zh"
-                            ? "计算器"
-                            : "တွက်ချက်မှု"}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => setUtilitySubTab("notes")}
-                      className={`flex-1 py-2 font-black text-[10px] sm:text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
-                        utilitySubTab === "notes"
-                          ? "bg-white text-indigo-700 shadow-sm"
-                          : "text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      <NotebookPen className="h-4 w-4 shrink-0" />
-                      <span>
-                        {lang === "en"
-                          ? "Notes"
-                          : lang === "zh"
-                            ? "备忘录"
-                            : "မှတ်စုများ"}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Conditionally Render Active Tab's Panel */}
-                  <AnimatePresence mode="wait">
-                    {utilitySubTab === "facts" && (
-                      <motion.div
-                        key="facts"
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                        className="bg-slate-50/55 p-4 rounded-3xl border border-slate-200/50 space-y-4 animate-in fade-in duration-200"
-                      >
-                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                          <BookOpen className="h-5 w-5 text-indigo-500 shrink-0" />
-                          <h4 className="font-extrabold text-sm text-slate-700">
-                            {lang === "en" ? "Guidelines & Facts" : lang === "zh" ? "循证医学指南" : "ညွှန်ကြားချက်များနှင့် အချက်အလက်များ"}
-                          </h4>
-                        </div>
-                        <OBGYNFacts />
-                      </motion.div>
-                    )}
-
-                    {utilitySubTab === "calcs" && (
-                      <motion.div
-                        key="calcs"
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                        className="bg-slate-50/55 p-4 rounded-3xl border border-slate-200/50 space-y-4 animate-in fade-in duration-200"
-                      >
-                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                          <Calculator className="h-5 w-5 text-indigo-500 shrink-0" />
-                          <h4 className="font-extrabold text-sm text-slate-700">
-                            {lang === "en" ? "Calculators" : lang === "zh" ? "临床计算器" : "တွက်ချက်မှုများ"}
-                          </h4>
-                        </div>
-                        <OBGYNCalculators />
-                      </motion.div>
-                    )}
-
-                    {utilitySubTab === "notes" && (
-                      <motion.div
-                        key="notes"
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                        className="bg-slate-50/55 p-4 rounded-3xl border border-slate-200/50 space-y-4 animate-in fade-in duration-200"
-                      >
-                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                          <NotebookPen className="h-5 w-5 text-indigo-500 shrink-0" />
-                          <h4 className="font-extrabold text-sm text-slate-700">
-                            {lang === "en" ? "Note Taking" : lang === "zh" ? "个人备忘录" : "မှတ်စုများ ရေးသားခြင်း"}
-                          </h4>
-                        </div>
-                        <div className="space-y-4">
-                          <NotesWidget activeDateStr={dateStr} />
-                          <p className="text-center text-[10px] text-slate-400 mt-4 font-medium flex items-center justify-center gap-1">
-                            <Lock className="h-3 w-3" />{" "}
-                            {lang === "en"
-                              ? "All notes are stored locally on your device. Privacy guaranteed."
-                              : lang === "zh"
-                                ? "所有笔记均保存在本地。保护您的隐私。"
-                                : "မှတ်စုများကို သင့်ဖုန်းထဲတွင်သာ သိမ်းဆည်းထားမည်ဖြစ်ပြီး လုံခြုံမှုအပြည့်အဝရှိပါသည်။"}
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                <ClinicalToolsTab />
               </motion.div>
             )}
-
             {currentTab === "settings" && (
               <motion.div
                 key="settings"
@@ -1405,8 +1374,14 @@ export default function App() {
                     </div>
                     <div className="flex gap-2">
                       <button
+                        onClick={() => setAppTheme?.("system")}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "system" || !appTheme ? "bg-slate-500 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                      >
+                        <Sparkles className="h-4 w-4 inline-block mr-1" /> {lang === "en" ? "System" : lang === "zh" ? "系统" : "စနစ်"}
+                      </button>
+                      <button
                         onClick={() => setAppTheme?.("light")}
-                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "light" || !appTheme ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs transition ${appTheme === "light" ? "bg-indigo-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"}`}
                       >
                         <Sun className="h-4 w-4 inline-block mr-1" /> {SETTINGS_LANG[lang]?.light || "Light"}
                       </button>
@@ -1493,6 +1468,40 @@ export default function App() {
         </div>
 
         {/* 5. DYNAMIC PRESET COLOR MODAL */}
+        <AnimatePresence>
+          {isNotesModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4 sm:p-6"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-slate-50 rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-100 relative"
+              >
+                <div className="flex justify-between items-center p-4 sm:p-6 bg-white border-b border-slate-100 shrink-0">
+                  <h3 className="font-black text-xl text-slate-800 flex items-center gap-2">
+                    <NotebookPen className="h-6 w-6 text-indigo-500" />
+                    {lang === "en" ? "Duty Notes" : lang === "zh" ? "值班笔记" : "ဂျူတီ မှတ်စုများ"}
+                  </h3>
+                  <button
+                    onClick={() => setIsNotesModalOpen(false)}
+                    className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="p-4 sm:p-6 overflow-y-auto no-scrollbar flex-1 relative">
+                  <NotesWidget activeDateStr={dateStr} />
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {isColorModalOpen && (
             <motion.div
@@ -2351,9 +2360,9 @@ export default function App() {
                   : "text-slate-400 hover:text-slate-600"
               }`}
             >
-              <Wrench className="h-5 w-5" />
+              <AlertCircle className="h-5 w-5" />
               <span className="text-[9px] font-bold uppercase tracking-widest text-center truncate w-full max-w-[64px]">
-                {lang === "en" ? "Utilities" : lang === "zh" ? "工具" : "ကိရိယာများ"}
+                {lang === "en" ? "Tools" : lang === "zh" ? "工具" : "ကိရိယာများ"}
               </span>
             </button>
 

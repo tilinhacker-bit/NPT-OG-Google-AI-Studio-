@@ -12,8 +12,8 @@ export interface AppState {
   currentTab: string;
   lang: "en" | "mm" | "zh";
   isDarkMode: boolean;
-  appTheme?: "light" | "dark" | "amoled";
-  setAppTheme: (theme: "light" | "dark" | "amoled") => void;
+  appTheme?: "light" | "dark" | "amoled" | "system";
+  setAppTheme: (theme: "light" | "dark" | "amoled" | "system") => void;
   theme: { [role: string]: ThemeColors };
   customDays: Record<string, { color: string; text: string }>;
   globalCustomDays: Record<string, { color: string; text: string }>;
@@ -43,7 +43,7 @@ export const useStore = create<AppState>()(
       userGroup: null,
       currentTab: "dashboard",
       lang: "en",
-      appTheme: "light",
+      appTheme: "system",
       isDarkMode: window.matchMedia("(prefers-color-scheme: dark)").matches,
       customDays: {},
       globalCustomDays: {},
@@ -63,13 +63,21 @@ export const useStore = create<AppState>()(
       setLang: (lang) => set({ lang }),
       setAppTheme: (appTheme) => {
         document.documentElement.classList.remove("dark", "amoled");
-        if (appTheme === "dark") {
+        let isDark = false;
+        if (appTheme === "system") {
+          isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (isDark) {
+            document.documentElement.classList.add("dark");
+          }
+        } else if (appTheme === "dark") {
           document.documentElement.classList.add("dark");
+          isDark = true;
         } else if (appTheme === "amoled") {
           document.documentElement.classList.add("dark", "amoled");
+          isDark = true;
         }
         // Sync isDarkMode for legacy components
-        set({ appTheme, isDarkMode: appTheme !== "light" });
+        set({ appTheme, isDarkMode: isDark });
       },
       setIsDarkMode: (isDarkMode) => {
         if (isDarkMode) {

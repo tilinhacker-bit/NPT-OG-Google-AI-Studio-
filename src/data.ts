@@ -239,8 +239,7 @@ export const DATA = {
       SAS: "Dr. Kay Thi Myo Myint",
       PG: "Dr. PSH",
       AS_Group: "Group 1",
-      WR: null,
-      Med_name: "SAS Dr. Yin Mon Aung",
+      WR: { postop: "Dr HMO", pn: "Dr MTK" },
       Med_phone: "09 799 969 997",
     },
     "2026-07-02": {
@@ -248,8 +247,7 @@ export const DATA = {
       JCS: "Dr. Darli Nyein Chan",
       SAS: "Dr. Linn Bo",
       AS_Group: "Group 2",
-      WR: null,
-      Med_name: "SAS Dr. Yin Mon Aung",
+      WR: { postop: "Dr NSDT", pn: "Dr HMMM" },
       Med_phone: "09 799 969 997",
     },
     "2026-07-03": {
@@ -257,8 +255,7 @@ export const DATA = {
       JCS: "-",
       SAS: "Dr. Cho May Mi Htet Naung",
       AS_Group: "Group 3",
-      WR: null,
-      Med_name: "SAS Dr. Yin Mon Aung",
+      WR: { postop: "Dr NLO", pn: "Dr TKW" },
       Med_phone: "09 799 969 997",
     },
     "2026-07-04": {
@@ -499,7 +496,6 @@ export const DATA = {
       SAS: "Dr. Kay Thi Myo Myint",
       AS_Group: "Group 2",
       WR: null,
-      Med_name: "SAS Dr. Htet Phyo Kyaw",
       Med_phone: "09 974 302 664 / 09 681 364 292",
     },
     "2026-07-30": {
@@ -547,16 +543,16 @@ export const DATA = {
 
   as_directory: {
     "1": [
-      { name: "Dr. Han Myint Mo Mo", phone: "09261618203" },
-      { name: "Dr. Nan Sandar Tun", phone: "09262779715" },
+      { name: "Dr. Thukha Wynn", phone: "09424752640" },
+      { name: "Dr. Nay Linn Oo", phone: "09793519374" },
     ],
     "2": [
       { name: "Dr. May Thu Khaing", phone: "09971170360" },
       { name: "Dr. Hlaing Myo Oo", phone: "09894702485" },
     ],
     "3": [
-      { name: "Dr. Thukha Wynn", phone: "09424752640" },
-      { name: "Dr. Nay Linn Oo", phone: "09793519374" },
+      { name: "Dr. Han Myint Mo Mo", phone: "09261618203" },
+      { name: "Dr. Nan Sandar Tun", phone: "09262779715" },
     ],
   } as { [group: string]: Contact[] },
 

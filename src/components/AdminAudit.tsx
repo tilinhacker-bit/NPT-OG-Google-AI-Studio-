@@ -106,7 +106,7 @@ export function AdminAudit({
         </div>
         
         <div className="overflow-x-auto rounded-2xl border border-slate-100">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                 <th className="py-3.5 px-4">Role / Status</th>
@@ -118,10 +118,10 @@ export function AdminAudit({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {roles.map((role) => {
+              {roles.map((role, idx) => {
                 const totalAll = getRoleAllGroupsTotal("all", role);
                 return (
-                  <tr key={role} className="hover:bg-slate-50/50 transition">
+                  <tr key={role} className={`hover:bg-slate-50/80 transition ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
                     <td className="py-3 px-4 text-xs">
                       <span
                         className="inline-block px-2.5 py-1 rounded-full text-xs font-black shadow-sm"
@@ -166,7 +166,7 @@ export function AdminAudit({
                   {monthNames[m]}
                 </h4>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-slate-100 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
                         <th className="py-2">Role</th>
@@ -177,8 +177,8 @@ export function AdminAudit({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {roles.map((role) => (
-                        <tr key={role} className="hover:bg-slate-50/30 transition text-xs">
+                      {roles.map((role, idx) => (
+                        <tr key={role} className={`hover:bg-slate-50/80 transition text-xs ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
                           <td className="py-2">
                             <span
                               className="inline-block px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm"

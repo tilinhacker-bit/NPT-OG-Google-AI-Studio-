@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from "react";
 import {
   Calendar,
   Baby,
@@ -202,7 +204,7 @@ export function OBGYNCalculators() {
     setTargetDate(new Date().toISOString().split("T")[0]);
   };
 
-  const apgarScore: number = Object.values(apgarScores).reduce<number>((a, b) => a + Number(b), 0);
+  const apgarScore = Object.values(apgarScores).reduce((a, b) => a + b, 0);
 
   const handleResetApgar = () => {
     setApgarScores({
@@ -221,22 +223,22 @@ export function OBGYNCalculators() {
       <div className="flex overflow-x-auto no-scrollbar gap-2 p-1 bg-slate-100/60 border border-slate-100 rounded-2xl">
         <button
           onClick={() => setActiveCalc("edd")}
-          className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 whitespace-nowrap ${
+          className={\`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 whitespace-nowrap \${
             activeCalc === "edd"
               ? "bg-white text-indigo-700 shadow-sm"
               : "text-slate-500 hover:text-slate-800"
-          }`}
+          }\`}
         >
           <Calendar className="h-4 w-4" />
           {tr.eddGa}
         </button>
         <button
           onClick={() => setActiveCalc("apgar")}
-          className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 whitespace-nowrap ${
+          className={\`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 whitespace-nowrap \${
             activeCalc === "apgar"
               ? "bg-white text-emerald-700 shadow-sm"
               : "text-slate-500 hover:text-slate-800"
-          }`}
+          }\`}
         >
           <Baby className="h-4 w-4" />
           {tr.apgar}
@@ -252,17 +254,17 @@ export function OBGYNCalculators() {
             <div className="flex bg-slate-100 p-1 rounded-xl">
               <button
                 onClick={() => setEddMethod("lmp")}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                className={\`flex-1 py-2 text-xs font-bold rounded-lg transition-all \${
                   eddMethod === "lmp" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                }\`}
               >
                 {tr.methodLmp}
               </button>
               <button
                 onClick={() => setEddMethod("scan")}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                className={\`flex-1 py-2 text-xs font-bold rounded-lg transition-all \${
                   eddMethod === "scan" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                }\`}
               >
                 {tr.methodScan}
               </button>
@@ -379,11 +381,11 @@ export function OBGYNCalculators() {
                 
                 {gaResult.weeks > 0 && (
                   <div className="flex justify-center mt-3">
-                    <span className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest ${
+                    <span className={\`text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest \${
                       gaResult.weeks < 37 ? "bg-amber-100 text-amber-700" :
                       gaResult.weeks >= 42 ? "bg-rose-100 text-rose-700" :
                       "bg-emerald-100 text-emerald-700"
-                    }`}>
+                    }\`}>
                       {termStatus}
                     </span>
                   </div>
@@ -417,9 +419,9 @@ export function OBGYNCalculators() {
                  <button
                  key={time}
                  onClick={() => setApgarTime(time)}
-                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                 className={\`flex-1 py-2 text-xs font-bold rounded-lg transition-all \${
                    apgarTime === time ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                 }`}
+                 }\`}
                >
                  {time === "1m" ? tr.apgar1m : time === "5m" ? tr.apgar5m : tr.apgar10m}
                </button>
@@ -445,13 +447,13 @@ export function OBGYNCalculators() {
                           <button
                             key={score}
                             onClick={() => setApgarScores(prev => ({ ...prev, [cat.key]: score }))}
-                            className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                            className={\`p-2 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 \${
                               isSelected 
                                 ? "bg-emerald-50 border-emerald-200 text-emerald-800 shadow-sm" 
                                 : "bg-slate-50/50 border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                            }`}
+                            }\`}
                           >
-                            <span className={`text-lg font-black leading-none ${isSelected ? "text-emerald-600" : "text-slate-300"}`}>
+                            <span className={\`text-lg font-black leading-none \${isSelected ? "text-emerald-600" : "text-slate-300"}\`}>
                               +{score}
                             </span>
                             <span className="text-[10px] sm:text-xs font-bold leading-tight">
@@ -501,10 +503,10 @@ export function OBGYNCalculators() {
                         fill="transparent"
                         strokeDasharray={2 * Math.PI * 58}
                         strokeDashoffset={2 * Math.PI * 58 * (1 - apgarScore / 10)}
-                        className={`transition-all duration-700 ease-out ${
+                        className={\`transition-all duration-700 ease-out \${
                           apgarScore >= 7 ? "text-emerald-500" : 
                           apgarScore >= 4 ? "text-amber-400" : "text-rose-500"
-                        }`}
+                        }\`}
                       />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center flex-col">
@@ -518,11 +520,11 @@ export function OBGYNCalculators() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                  <div className={\`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest \${
                     apgarScore >= 7 ? "bg-emerald-100 text-emerald-700" :
                     apgarScore >= 4 ? "bg-amber-100 text-amber-700" :
                     "bg-rose-100 text-rose-700"
-                  }`}>
+                  }\`}>
                     {apgarScore >= 7 ? tr.apgarStatusNormal : apgarScore >= 4 ? tr.apgarStatusModerate : tr.apgarStatusCritical}
                   </div>
                   
@@ -549,3 +551,6 @@ export function OBGYNCalculators() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/OBGYNCalculators.tsx', code);
